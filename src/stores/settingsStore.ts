@@ -1,0 +1,626 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import {
+  DEEPSEEK_V4_FLASH,
+  DEEPSEEK_V4_PRO,
+  normalizeProviderModelName,
+} from '../lib/deepseek-models';
+import {
+  saveWallpaperToDb,
+  clearWallpaperFromDb,
+} from '../lib/wallpaper-storage';
+
+// --- Types ---
+
+export type Theme = 'light' | 'dark' | 'system';
+export type ColorTheme = 'black' | 'blue' | 'orange' | 'green';
+export type BackgroundTheme = 'garden' | 'sakura' | 'lake' | 'dusk' | 'ink' | 'vscode' | 'minimal' | 'claude';
+export type SecondaryPanelTab = 'files' | 'preview' | 'skills' | 'plugins';
+export type ModelId = 'claude-opus-4-6' | 'claude-opus-4-6-1m' | 'claude-sonnet-4-6' | 'claude-haiku-4-5-20251001';
+export type SessionMode = 'code' | 'ask' | 'plan' | 'bypass';
+export type FontFamily = 'system' | 'microsoft' | 'sourceHan' | 'lxgw' | 'mono';
+/** CLI permission mode for the SDK control protocol */
+export type CliPermissionMode = 'acceptEdits' | 'default' | 'plan' | 'bypassPermissions';
+export type Locale = 'zh' | 'en';
+export type CustomBgSize = 'cover' | 'contain' | 'fill' | 'center';
+
+/** Map frontend session mode to CLI permission mode */
+export function mapSessionModeToPermissionMode(mode: SessionMode): CliPermissionMode {
+  switch (mode) {
+    case 'code': return 'acceptEdits';
+    case 'ask': return 'default';
+    case 'plan': return 'plan';
+    case 'bypass': return 'bypassPermissions';
+  }
+}
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max';
+export type ContextWindowMode = 'default' | 'large1m';
+
+function defaultAutoCompactThreshold(mode: ContextWindowMode): number {
+  return mode === 'large1m' ? 800_000 : 160_000;
+}
+
+function clampAutoCompactThreshold(tokens: number): number {
+  if (!Number.isFinite(tokens)) return 160_000;
+  return Math.max(10_000, Math.min(1_000_000, Math.round(tokens)));
+}
+
+// --- Model options (display mapping) ---
+
+export const MODEL_OPTIONS: { id: ModelId; label: string; short: string }[] = [
+  { id: 'claude-opus-4-6', label: 'Claude Opus 4.6', short: 'Opus 4.6' },
+  { id: 'claude-opus-4-6-1m', label: 'Claude Opus 4.6 (1M)', short: 'Opus 4.6 1M' },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
+];
+
+function migrateModelSelection(model: unknown): ModelId | undefined {
+  if (typeof model !== 'string') return undefined;
+  const normalized = normalizeProviderModelName(model);
+  if (normalized === DEEPSEEK_V4_PRO) return 'claude-opus-4-6';
+  if (normalized === DEEPSEEK_V4_FLASH) return 'claude-sonnet-4-6';
+  if (MODEL_OPTIONS.some((option) => option.id === model)) return model as ModelId;
+  if (model === 'claude-haiku-4-5') return 'claude-haiku-4-5-20251001';
+  return undefined;
+}
+
+// --- Store State & Actions ---
+
+interface SettingsState {
+  theme: Theme;
+  colorTheme: ColorTheme;
+  backgroundTheme: BackgroundTheme;
+  sidebarOpen: boolean;
+  secondaryPanelOpen: boolean;
+  secondaryPanelTab: SecondaryPanelTab;
+  secondaryPanelWidth: number;
+  settingsOpen: boolean;
+  workingDirectory: string;
+  selectedModel: string;
+  sessionMode: SessionMode;
+  locale: Locale;
+  /** Global UI font size in px (default 18) */
+  fontSize: number;
+  /** Global UI font family preset */
+  fontFamily: FontFamily;
+  /** Whether mono-styled UI labels should follow the selected interface font */
+  monoFontFollowsInterface: boolean;
+  /** Sidebar width in px (default 280) */
+  sidebarWidth: number;
+  /** Whether the CLI setup wizard has been completed or skipped */
+  setupCompleted: boolean;
+  /** Thinking effort level: off disables, low/medium/high/max set effort */
+  thinkingLevel: ThinkingLevel;
+  /** Declares that the selected/provider model supports a 1M context window. */
+  contextWindowMode: ContextWindowMode;
+  /** User-adjustable auto compact threshold in tokens. */
+  autoCompactThresholdTokens: number;
+  /** Whether a newer version is available (set by auto-check on startup) */
+  updateAvailable: boolean;
+  /** Whether a newer CLI version is available */
+  cliUpdateAvailable: boolean;
+  /** Latest CLI version string (for display) */
+  cliLatestVersion: string;
+  /** Version string of the available update */
+  updateVersion: string;
+  /** Whether the update has been downloaded and is ready for restart (transient, not persisted) */
+  updateDownloaded: boolean;
+  /** Last app version the user has seen the changelog for */
+  lastSeenVersion: string;
+  /** Custom AI avatar image (data URL or empty string for default </> icon) */
+  aiAvatarUrl: string;
+  /** Custom user avatar image (data URL or empty string for default initials) */
+  userAvatarUrl: string;
+  /** User display name shown next to messages */
+  userDisplayName: string;
+  /** Whether to show dotfiles (hidden files) in the file tree */
+  showHiddenFiles: boolean;
+  /** Whether Enter sends (false, default) or Ctrl+Enter sends (true) */
+  ctrlEnterToSend: boolean;
+  /** Whether Ctrl+Click on a file opens it with the system default app */
+  ctrlClickOpenExternally: boolean;
+  /** Whether to show image thumbnail previews in chat for images < 50MB */
+  showImageThumbnails: boolean;
+  /** Extra user-selected roots containing Claude-compatible skills. */
+  skillDirectories: string[];
+
+  // ── Custom background (user-uploaded image) ──
+  /** Base64 data URL of user-uploaded custom background image, empty = disabled */
+  customBgImage: string;
+  /** Background size mode */
+  customBgSize: CustomBgSize;
+  /** Horizontal position offset (0=left, 100=right) */
+  customBgPositionX: number;
+  /** Vertical position offset (0=top, 100=bottom) */
+  customBgPositionY: number;
+  /** Wallpaper dimming mask (0=no mask, 80=dark mask) */
+  customBgDim: number;
+  /** Wallpaper blur in px (0=crisp, 30=blurred) */
+  customBgBlur: number;
+  /** Whether chat messages render with frosted glass cards */
+  chatBubbleGlass: boolean;
+  /** Glass blur strength in px */
+  glassBlur: number;
+  /** Glass panel opacity (0=clear, 100=solid) */
+  glassOpacity: number;
+
+  toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
+  setColorTheme: (colorTheme: ColorTheme) => void;
+  setBackgroundTheme: (backgroundTheme: BackgroundTheme) => void;
+  /** Whether the floating agent panel is open */
+  agentPanelOpen: boolean;
+
+  toggleSidebar: () => void;
+  toggleSecondaryPanel: () => void;
+  toggleAgentPanel: () => void;
+  setSecondaryTab: (tab: SecondaryPanelTab) => void;
+  setSecondaryPanelWidth: (width: number) => void;
+  toggleSettings: () => void;
+  setWorkingDirectory: (dir: string) => void;
+  setSelectedModel: (model: string) => void;
+  setSessionMode: (mode: SessionMode) => void;
+  setLocale: (locale: Locale) => void;
+  toggleLocale: () => void;
+  setFontSize: (size: number) => void;
+  setFontFamily: (family: FontFamily) => void;
+  setMonoFontFollowsInterface: (enabled: boolean) => void;
+  increaseFontSize: () => void;
+  decreaseFontSize: () => void;
+  setSidebarWidth: (width: number) => void;
+  setSetupCompleted: (completed: boolean) => void;
+  setThinkingLevel: (level: ThinkingLevel) => void;
+  setContextWindowMode: (mode: ContextWindowMode) => void;
+  setAutoCompactThresholdTokens: (tokens: number) => void;
+  setUpdateAvailable: (available: boolean, version?: string) => void;
+  setUpdateDownloaded: (downloaded: boolean) => void;
+  setLastSeenVersion: (version: string) => void;
+  setAiAvatarUrl: (url: string) => void;
+  setUserAvatarUrl: (url: string) => void;
+  setUserDisplayName: (name: string) => void;
+  toggleHiddenFiles: () => void;
+  toggleCtrlEnterToSend: () => void;
+  toggleCtrlClickOpenExternally: () => void;
+  toggleShowImageThumbnails: () => void;
+  addSkillDirectory: (path: string) => void;
+  removeSkillDirectory: (path: string) => void;
+  setCustomBgImage: (image: string) => void;
+  setCustomBgSize: (size: CustomBgSize) => void;
+  setCustomBgPositionX: (x: number) => void;
+  setCustomBgPositionY: (y: number) => void;
+  setCustomBgDim: (dim: number) => void;
+  setCustomBgBlur: (blur: number) => void;
+  setChatBubbleGlass: (enabled: boolean) => void;
+  setGlassBlur: (blur: number) => void;
+  setGlassOpacity: (opacity: number) => void;
+  clearCustomBg: () => void;
+}
+
+// --- Theme cycle order ---
+
+const themeCycle: Theme[] = ['light', 'dark', 'system'];
+
+function nextTheme(current: Theme): Theme {
+  const idx = themeCycle.indexOf(current);
+  return themeCycle[(idx + 1) % themeCycle.length];
+}
+
+// --- Store ---
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      theme: 'system',
+      colorTheme: 'black',
+      backgroundTheme: 'garden',
+      sidebarOpen: true,
+      secondaryPanelOpen: false,
+      secondaryPanelTab: 'files',
+      secondaryPanelWidth: 300,
+      settingsOpen: false,
+      agentPanelOpen: false,
+      workingDirectory: '',
+      selectedModel: 'claude-sonnet-4-6',
+      sessionMode: 'bypass',
+      locale: 'zh',
+      fontSize: 18,
+      fontFamily: 'microsoft',
+      monoFontFollowsInterface: true,
+      sidebarWidth: 280,
+      setupCompleted: false,
+      thinkingLevel: 'medium' as ThinkingLevel,
+      contextWindowMode: 'default',
+      autoCompactThresholdTokens: 160_000,
+      updateAvailable: false,
+      updateVersion: '',
+      cliUpdateAvailable: false,
+      cliLatestVersion: '',
+      updateDownloaded: false,
+      lastSeenVersion: '',
+      aiAvatarUrl: '',
+      userAvatarUrl: '',
+      userDisplayName: '',
+      showHiddenFiles: false,
+      ctrlEnterToSend: false,
+      ctrlClickOpenExternally: false,
+      showImageThumbnails: false,
+      skillDirectories: [],
+      customBgImage: '',
+      customBgSize: 'cover' as CustomBgSize,
+      customBgPositionX: 50,
+      customBgPositionY: 50,
+      customBgDim: 20,
+      customBgBlur: 0,
+      chatBubbleGlass: true,
+      glassBlur: 8,
+      glassOpacity: 85,
+
+      toggleTheme: () =>
+        set((state) => ({ theme: nextTheme(state.theme) })),
+
+      setTheme: (theme) => set(() => ({ theme })),
+
+      setColorTheme: (colorTheme) => set(() => ({ colorTheme })),
+
+      setBackgroundTheme: (backgroundTheme) => set(() => ({ backgroundTheme })),
+
+      toggleSidebar: () =>
+        set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+      toggleSecondaryPanel: () =>
+        set((state) => ({
+          secondaryPanelOpen: !state.secondaryPanelOpen,
+        })),
+
+      toggleAgentPanel: () =>
+        set((state) => ({ agentPanelOpen: !state.agentPanelOpen })),
+
+      setSecondaryTab: (tab) =>
+        set(() => ({
+          secondaryPanelTab: tab,
+          secondaryPanelOpen: true,
+        })),
+
+      setSecondaryPanelWidth: (width) =>
+        set(() => ({ secondaryPanelWidth: width })),
+
+      toggleSettings: () =>
+        set((state) => ({
+          settingsOpen: !state.settingsOpen,
+          // Clear update badge when opening settings
+          ...(!state.settingsOpen && state.updateAvailable ? { updateAvailable: false } : {}),
+        })),
+
+      setWorkingDirectory: (dir) =>
+        set(() => ({ workingDirectory: dir })),
+
+      setSelectedModel: (model) =>
+        set(() => ({ selectedModel: model })),
+
+      setSessionMode: (mode) =>
+        set(() => ({ sessionMode: mode })),
+
+      setLocale: (locale) =>
+        set(() => ({ locale })),
+
+      toggleLocale: () =>
+        set((state) => ({ locale: state.locale === 'zh' ? 'en' : 'zh' })),
+
+      setFontSize: (size) =>
+        set(() => ({ fontSize: Math.max(10, Math.min(36, size)) })),
+
+      setFontFamily: (fontFamily) =>
+        set(() => ({ fontFamily })),
+
+      setMonoFontFollowsInterface: (monoFontFollowsInterface) =>
+        set(() => ({ monoFontFollowsInterface })),
+
+      increaseFontSize: () =>
+        set((state) => ({ fontSize: Math.min(36, state.fontSize + 1) })),
+
+      decreaseFontSize: () =>
+        set((state) => ({ fontSize: Math.max(10, state.fontSize - 1) })),
+
+      setSidebarWidth: (width) =>
+        set(() => ({ sidebarWidth: Math.max(180, Math.min(450, width)) })),
+
+      setSetupCompleted: (completed) =>
+        set(() => ({ setupCompleted: completed })),
+
+      setThinkingLevel: (level) =>
+        set(() => ({ thinkingLevel: level })),
+
+      setContextWindowMode: (contextWindowMode) =>
+        set((state) => {
+          const oldDefault = defaultAutoCompactThreshold(state.contextWindowMode);
+          const nextDefault = defaultAutoCompactThreshold(contextWindowMode);
+          return {
+            contextWindowMode,
+            ...(state.autoCompactThresholdTokens === oldDefault
+              ? { autoCompactThresholdTokens: nextDefault }
+              : {}),
+          };
+        }),
+
+      setAutoCompactThresholdTokens: (autoCompactThresholdTokens) =>
+        set(() => ({ autoCompactThresholdTokens: clampAutoCompactThreshold(autoCompactThresholdTokens) })),
+
+      setUpdateAvailable: (available, version) =>
+        set(() => ({
+          updateAvailable: available,
+          ...(version !== undefined ? { updateVersion: version } : {}),
+          ...(!available ? { updateVersion: '', updateDownloaded: false } : {}),
+        })),
+
+      setUpdateDownloaded: (downloaded) =>
+        set(() => ({ updateDownloaded: downloaded })),
+
+      setLastSeenVersion: (version) =>
+        set(() => ({ lastSeenVersion: version })),
+
+      setAiAvatarUrl: (url) =>
+        set(() => ({ aiAvatarUrl: url })),
+
+      setUserAvatarUrl: (url) =>
+        set(() => ({ userAvatarUrl: url })),
+
+      setUserDisplayName: (name) =>
+        set(() => ({ userDisplayName: name.slice(0, 20) })),
+      setCustomBgImage: (image) => {
+        if (image) {
+          saveWallpaperToDb(image).catch((e) => console.warn('Failed to save wallpaper to IndexedDB', e));
+        } else {
+          clearWallpaperFromDb().catch((e) => console.warn('Failed to clear wallpaper from IndexedDB', e));
+        }
+        set(() => ({ customBgImage: image }));
+      },
+      setCustomBgSize: (size) => set(() => ({ customBgSize: size })),
+      setCustomBgPositionX: (x) => set(() => ({ customBgPositionX: Math.max(0, Math.min(100, x)) })),
+      setCustomBgPositionY: (y) => set(() => ({ customBgPositionY: Math.max(0, Math.min(100, y)) })),
+      setCustomBgDim: (dim) => set(() => ({ customBgDim: Math.max(0, Math.min(80, dim)) })),
+      setCustomBgBlur: (blur) => set(() => ({ customBgBlur: Math.max(0, Math.min(30, blur)) })),
+      setChatBubbleGlass: (chatBubbleGlass) => set(() => ({ chatBubbleGlass })),
+      setGlassBlur: (blur) => set(() => ({ glassBlur: Math.max(0, Math.min(20, blur)) })),
+      setGlassOpacity: (opacity) => set(() => ({ glassOpacity: Math.max(0, Math.min(100, opacity)) })),
+      clearCustomBg: () => {
+        clearWallpaperFromDb().catch((e) => console.warn('Failed to clear wallpaper from IndexedDB', e));
+        set(() => ({
+          customBgImage: '',
+          customBgSize: 'cover' as CustomBgSize,
+          customBgPositionX: 50,
+          customBgPositionY: 50,
+          customBgDim: 20,
+          customBgBlur: 0,
+          chatBubbleGlass: true,
+          glassBlur: 8,
+          glassOpacity: 85,
+        }));
+      },
+      toggleHiddenFiles: () =>
+        set((state) => ({ showHiddenFiles: !state.showHiddenFiles })),
+      toggleCtrlEnterToSend: () =>
+        set((state) => ({ ctrlEnterToSend: !state.ctrlEnterToSend })),
+      toggleCtrlClickOpenExternally: () =>
+        set((state) => ({ ctrlClickOpenExternally: !state.ctrlClickOpenExternally })),
+      toggleShowImageThumbnails: () =>
+        set((state) => ({ showImageThumbnails: !state.showImageThumbnails })),
+      addSkillDirectory: (path) =>
+        set((state) => {
+          const normalized = path.trim().replace(/[\\/]+$/, '');
+          if (!normalized || state.skillDirectories.includes(normalized)) return state;
+          return { skillDirectories: [...state.skillDirectories, normalized] };
+        }),
+      removeSkillDirectory: (path) =>
+        set((state) => ({ skillDirectories: state.skillDirectories.filter((item) => item !== path) })),
+    }),
+    {
+      name: 'tokenicode-settings',
+      version: 16,
+      migrate: (persistedState: unknown, version: number) => {
+        const persisted = persistedState as Record<string, unknown>;
+        if (version === 0) {
+          // Migrate legacy model IDs to current ones
+          const legacyMap: Record<string, ModelId> = {
+            'claude-opus-4-0': 'claude-opus-4-6',
+            'claude-sonnet-4-0': 'claude-sonnet-4-6',
+            'claude-haiku-3-5': 'claude-haiku-4-5-20251001',
+          };
+          const old = persisted.selectedModel as string;
+          if (old && legacyMap[old]) {
+            persisted.selectedModel = legacyMap[old];
+          }
+        }
+        if (version < 2) {
+          persisted.updateAvailable = false;
+          persisted.updateVersion = '';
+          persisted.lastSeenVersion = '';
+        }
+        if (version < 3) {
+          persisted.apiProviderMode = 'inherit';
+          persisted.customProviderName = '';
+          persisted.customProviderBaseUrl = '';
+          persisted.customProviderModelMappings = [];
+          persisted.customProviderApiFormat = 'anthropic';
+        }
+        if (version < 4) {
+          // Migrate boolean thinkingEnabled → ThinkingLevel
+          const oldThinking = persisted.thinkingEnabled;
+          persisted.thinkingLevel = oldThinking === false ? 'off' : 'high';
+          delete persisted.thinkingEnabled;
+        }
+        if (version < 5) {
+          // Force default mode to bypass — old versions may have persisted 'code'/'ask'
+          persisted.sessionMode = 'bypass';
+        }
+        if (version < 6) {
+          // Fix Haiku model ID: claude-haiku-4-5 → claude-haiku-4-5-20251001
+          if (persisted.selectedModel === 'claude-haiku-4-5') {
+            persisted.selectedModel = 'claude-haiku-4-5-20251001';
+          }
+        }
+        if (version < 7) {
+          const migratedModel = migrateModelSelection(persisted.selectedModel);
+          if (migratedModel) {
+            persisted.selectedModel = migratedModel;
+          }
+        }
+        if (version < 8) {
+          persisted.backgroundTheme = 'garden';
+        }
+        if (version < 9) {
+          persisted.monoFontFollowsInterface = true;
+        }
+        if (version < 10) {
+          persisted.contextWindowMode = 'default';
+        }
+        if (version < 11) {
+          const mode = persisted.contextWindowMode === 'large1m' ? 'large1m' : 'default';
+          persisted.autoCompactThresholdTokens = defaultAutoCompactThreshold(mode);
+        }
+        if (version < 12) {
+          persisted.customBgImage = '';
+          persisted.customBgSize = 'cover';
+          persisted.customBgPositionX = 50;
+          persisted.customBgPositionY = 50;
+          persisted.glassBlur = 8;
+          persisted.glassOpacity = 85;
+        }
+        if (version < 13) {
+          persisted.ctrlEnterToSend = false;
+        }
+        if (version < 14) {
+          persisted.ctrlClickOpenExternally = false;
+          persisted.showImageThumbnails = false;
+        }
+        if (version < 15) {
+          persisted.skillDirectories = [];
+        }
+        if (version < 16) {
+          persisted.customBgDim = 20;
+          persisted.customBgBlur = 0;
+          persisted.chatBubbleGlass = true;
+          if (persisted.customBgImage && typeof persisted.customBgImage === 'string') {
+            saveWallpaperToDb(persisted.customBgImage as string).catch(() => {});
+            delete persisted.customBgImage;
+          }
+        }
+        return persisted;
+      },
+      partialize: (state) => ({
+        theme: state.theme,
+        colorTheme: state.colorTheme,
+        backgroundTheme: state.backgroundTheme,
+        sidebarOpen: state.sidebarOpen,
+        secondaryPanelWidth: state.secondaryPanelWidth,
+        workingDirectory: state.workingDirectory,
+        selectedModel: state.selectedModel,
+        sessionMode: state.sessionMode,
+        locale: state.locale,
+        fontSize: state.fontSize,
+        fontFamily: state.fontFamily,
+        monoFontFollowsInterface: state.monoFontFollowsInterface,
+        sidebarWidth: state.sidebarWidth,
+        setupCompleted: state.setupCompleted,
+        thinkingLevel: state.thinkingLevel,
+        contextWindowMode: state.contextWindowMode,
+        autoCompactThresholdTokens: state.autoCompactThresholdTokens,
+        updateAvailable: state.updateAvailable,
+        updateVersion: state.updateVersion,
+        lastSeenVersion: state.lastSeenVersion,
+        aiAvatarUrl: state.aiAvatarUrl,
+        userAvatarUrl: state.userAvatarUrl,
+        userDisplayName: state.userDisplayName,
+        showHiddenFiles: state.showHiddenFiles,
+        ctrlEnterToSend: state.ctrlEnterToSend,
+        ctrlClickOpenExternally: state.ctrlClickOpenExternally,
+        showImageThumbnails: state.showImageThumbnails,
+        skillDirectories: state.skillDirectories,
+        // customBgImage is intentionally omitted from partialize to avoid localStorage 5MB quota errors.
+        // It is saved into IndexedDB and re-hydrated on app initialization.
+        customBgSize: state.customBgSize,
+        customBgPositionX: state.customBgPositionX,
+        customBgPositionY: state.customBgPositionY,
+        customBgDim: state.customBgDim,
+        customBgBlur: state.customBgBlur,
+        chatBubbleGlass: state.chatBubbleGlass,
+        glassBlur: state.glassBlur,
+        glassOpacity: state.glassOpacity,
+      }),
+    },
+  ),
+);
+
+// --- Per-session effective value helpers (Phase 4) ---
+// These read the snapshotted value from SessionMeta, falling back to the global store.
+// Import SessionMeta lazily to avoid circular dependency.
+
+/** Get the effective session mode for a given session's meta snapshot */
+export function getEffectiveMode(meta: { snapshotMode?: SessionMode } | undefined): SessionMode {
+  return meta?.snapshotMode ?? useSettingsStore.getState().sessionMode;
+}
+
+/** Get the effective model for a given session's meta snapshot */
+export function getEffectiveModel(meta: { snapshotModel?: string } | undefined): string {
+  return meta?.snapshotModel ?? useSettingsStore.getState().selectedModel;
+}
+
+/** Get the effective thinking level for a given session's meta snapshot */
+export function getEffectiveThinking(meta: { snapshotThinking?: ThinkingLevel } | undefined): ThinkingLevel {
+  return meta?.snapshotThinking ?? useSettingsStore.getState().thinkingLevel;
+}
+
+export function isLargeContextMode(model?: string, mode?: ContextWindowMode): boolean {
+  if (mode === 'large1m') return true;
+  const lower = (model || '').toLowerCase();
+  return lower.includes('1m') || lower.includes('[1m]');
+}
+
+export function getContextWindowForModel(model?: string, mode?: ContextWindowMode): number {
+  return isLargeContextMode(model, mode) ? 1_000_000 : 200_000;
+}
+
+export function getAutoCompactThreshold(model?: string, mode?: ContextWindowMode, overrideTokens?: number): number {
+  if (typeof overrideTokens === 'number') {
+    return clampAutoCompactThreshold(overrideTokens);
+  }
+  return getContextWindowForModel(model, mode) >= 1_000_000 ? 800_000 : 160_000;
+}
+
+// --- Runtime mode switching via SDK control protocol ---
+// When sessionMode changes and there's an active CLI session, send set_permission_mode.
+
+let _skipNextModeSync = false;
+
+/** Update frontend sessionMode WITHOUT sending set_permission_mode to CLI.
+ *  Use when CLI already switched modes internally (e.g. after ExitPlanMode allow). */
+export function setSessionModeLocal(mode: SessionMode): void {
+  _skipNextModeSync = true;
+  useSettingsStore.getState().setSessionMode(mode);
+}
+
+useSettingsStore.subscribe((state, prevState) => {
+  if (state.sessionMode === prevState.sessionMode) return;
+
+  if (_skipNextModeSync) {
+    _skipNextModeSync = false;
+    return;
+  }
+
+  const cliMode = mapSessionModeToPermissionMode(state.sessionMode);
+
+  // bypass uses --dangerously-skip-permissions at startup; can't switch TO bypass at runtime
+  if (cliMode === 'bypassPermissions') return;
+
+  // Dynamically import to avoid circular deps
+  Promise.all([
+    import('../lib/tauri-bridge'),
+    import('./chatStore'),
+  ]).then(([{ bridge }, { getActiveTabState }]) => {
+    const stdinId = getActiveTabState().sessionMeta.stdinId;
+    if (!stdinId) return; // No active session
+
+    bridge.setPermissionMode(stdinId, cliMode).catch((err: unknown) => {
+      console.error('[TOKENICODE] Failed to set permission mode:', err);
+    });
+  });
+});
