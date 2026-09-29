@@ -183,10 +183,9 @@ function UserMsg({ message }: Props) {
                   e.stopPropagation();
                   window.dispatchEvent(new CustomEvent('tokenicode:interrupt-and-send', { detail: { queueId: message.id } }));
                 }}
-                className="px-2 py-0.5 rounded bg-amber-400/40 hover:bg-amber-400/70 text-[11px] text-white font-medium transition-smooth cursor-pointer flex items-center gap-0.5 shadow-sm"
+                className="px-2 py-0.5 rounded bg-amber-400/40 hover:bg-amber-400/70 text-[11px] text-white font-medium transition-smooth cursor-pointer flex items-center shadow-sm"
                 title={t('queue.jumpAndRunHint')}
               >
-                <span>⚡</span>
                 <span>{t('queue.jumpShort')}</span>
               </button>
               <button

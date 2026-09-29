@@ -64,8 +64,10 @@ export const MessageQueueBar = memo(function MessageQueueBar({ tabId }: MessageQ
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-2 text-left cursor-pointer group select-none"
         >
-          <span className="w-5 h-5 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs shadow-sm">
-            ⏳
+          <span className="w-5 h-5 rounded-full bg-accent/15 text-accent flex items-center justify-center shadow-sm">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M2 4h12M2 8h8M2 12h5" />
+            </svg>
           </span>
           <span className="text-xs font-semibold text-text-primary group-hover:text-accent transition-colors">
             {t('queue.title')}
@@ -136,10 +138,9 @@ export const MessageQueueBar = memo(function MessageQueueBar({ tabId }: MessageQ
                   {/* Jump & Run (叫停并插队) */}
                   <button
                     onClick={() => handleJumpAndRun(item, index)}
-                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-smooth cursor-pointer"
+                    className="flex items-center px-2 py-0.5 rounded text-[11px] font-medium text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-smooth cursor-pointer"
                     title={t('queue.jumpAndRunHint')}
                   >
-                    <span>⚡</span>
                     <span>{t('queue.jumpAndRun')}</span>
                   </button>
 

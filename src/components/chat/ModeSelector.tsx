@@ -69,7 +69,7 @@ export function ModeSelector({ disabled = false }: { disabled?: boolean }) {
   const isBypass = sessionMode === 'bypass';
 
   const MODE_FEEDBACK: Record<SessionMode, { i18nKey: string; icon: string }> = {
-    code: { i18nKey: 'cmd.switchedToCode', icon: '⚡' },
+    code: { i18nKey: 'cmd.switchedToCode', icon: '</>' },
     ask: { i18nKey: 'cmd.switchedToAsk', icon: '💬' },
     plan: { i18nKey: 'cmd.switchedToPlan', icon: '📋' },
     bypass: { i18nKey: 'cmd.switchedToBypass', icon: '⭐' },

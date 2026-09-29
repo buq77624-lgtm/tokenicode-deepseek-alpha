@@ -7,7 +7,9 @@ import {
 } from '../lib/deepseek-models';
 import {
   saveWallpaperToDb,
+  loadWallpaperFromDb,
   clearWallpaperFromDb,
+  dataUrlToBlob,
 } from '../lib/wallpaper-storage';
 
 // --- Types ---
@@ -137,12 +139,8 @@ interface SettingsState {
   customBgDim: number;
   /** Wallpaper blur in px (0=crisp, 30=blurred) */
   customBgBlur: number;
-  /** Whether chat messages render with frosted glass cards */
+  /** Whether AI messages render on their own translucent card */
   chatBubbleGlass: boolean;
-  /** Glass blur strength in px */
-  glassBlur: number;
-  /** Glass panel opacity (0=clear, 100=solid) */
-  glassOpacity: number;
 
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
@@ -184,15 +182,14 @@ interface SettingsState {
   toggleShowImageThumbnails: () => void;
   addSkillDirectory: (path: string) => void;
   removeSkillDirectory: (path: string) => void;
-  setCustomBgImage: (image: string) => void;
+  setCustomBgImage: (blob: Blob | null) => void;
+  hydrateWallpaper: () => void;
   setCustomBgSize: (size: CustomBgSize) => void;
   setCustomBgPositionX: (x: number) => void;
   setCustomBgPositionY: (y: number) => void;
   setCustomBgDim: (dim: number) => void;
   setCustomBgBlur: (blur: number) => void;
   setChatBubbleGlass: (enabled: boolean) => void;
-  setGlassBlur: (blur: number) => void;
-  setGlassOpacity: (opacity: number) => void;
   clearCustomBg: () => void;
 }
 
@@ -209,7 +206,7 @@ function nextTheme(current: Theme): Theme {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'system',
       colorTheme: 'black',
       backgroundTheme: 'garden',
@@ -252,8 +249,6 @@ export const useSettingsStore = create<SettingsState>()(
       customBgDim: 20,
       customBgBlur: 0,
       chatBubbleGlass: true,
-      glassBlur: 8,
-      glassOpacity: 85,
 
       toggleTheme: () =>
         set((state) => ({ theme: nextTheme(state.theme) })),
@@ -366,13 +361,23 @@ export const useSettingsStore = create<SettingsState>()(
 
       setUserDisplayName: (name) =>
         set(() => ({ userDisplayName: name.slice(0, 20) })),
-      setCustomBgImage: (image) => {
-        if (image) {
-          saveWallpaperToDb(image).catch((e) => console.warn('Failed to save wallpaper to IndexedDB', e));
+      setCustomBgImage: (blob) => {
+        const previous = get().customBgImage;
+        if (previous.startsWith('blob:')) URL.revokeObjectURL(previous);
+        if (blob) {
+          saveWallpaperToDb(blob).catch((e) => console.warn('Failed to save wallpaper to IndexedDB', e));
+          set(() => ({ customBgImage: URL.createObjectURL(blob) }));
         } else {
           clearWallpaperFromDb().catch((e) => console.warn('Failed to clear wallpaper from IndexedDB', e));
+          set(() => ({ customBgImage: '' }));
         }
-        set(() => ({ customBgImage: image }));
+      },
+      hydrateWallpaper: () => {
+        loadWallpaperFromDb().then((blob) => {
+          if (blob && !get().customBgImage) {
+            set(() => ({ customBgImage: URL.createObjectURL(blob) }));
+          }
+        });
       },
       setCustomBgSize: (size) => set(() => ({ customBgSize: size })),
       setCustomBgPositionX: (x) => set(() => ({ customBgPositionX: Math.max(0, Math.min(100, x)) })),
@@ -380,9 +385,9 @@ export const useSettingsStore = create<SettingsState>()(
       setCustomBgDim: (dim) => set(() => ({ customBgDim: Math.max(0, Math.min(80, dim)) })),
       setCustomBgBlur: (blur) => set(() => ({ customBgBlur: Math.max(0, Math.min(30, blur)) })),
       setChatBubbleGlass: (chatBubbleGlass) => set(() => ({ chatBubbleGlass })),
-      setGlassBlur: (blur) => set(() => ({ glassBlur: Math.max(0, Math.min(20, blur)) })),
-      setGlassOpacity: (opacity) => set(() => ({ glassOpacity: Math.max(0, Math.min(100, opacity)) })),
       clearCustomBg: () => {
+        const previous = get().customBgImage;
+        if (previous.startsWith('blob:')) URL.revokeObjectURL(previous);
         clearWallpaperFromDb().catch((e) => console.warn('Failed to clear wallpaper from IndexedDB', e));
         set(() => ({
           customBgImage: '',
@@ -392,8 +397,6 @@ export const useSettingsStore = create<SettingsState>()(
           customBgDim: 20,
           customBgBlur: 0,
           chatBubbleGlass: true,
-          glassBlur: 8,
-          glassOpacity: 85,
         }));
       },
       toggleHiddenFiles: () =>
@@ -415,7 +418,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'tokenicode-settings',
-      version: 16,
+      version: 17,
       migrate: (persistedState: unknown, version: number) => {
         const persisted = persistedState as Record<string, unknown>;
         if (version === 0) {
@@ -482,8 +485,6 @@ export const useSettingsStore = create<SettingsState>()(
           persisted.customBgSize = 'cover';
           persisted.customBgPositionX = 50;
           persisted.customBgPositionY = 50;
-          persisted.glassBlur = 8;
-          persisted.glassOpacity = 85;
         }
         if (version < 13) {
           persisted.ctrlEnterToSend = false;
@@ -500,9 +501,13 @@ export const useSettingsStore = create<SettingsState>()(
           persisted.customBgBlur = 0;
           persisted.chatBubbleGlass = true;
           if (persisted.customBgImage && typeof persisted.customBgImage === 'string') {
-            saveWallpaperToDb(persisted.customBgImage as string).catch(() => {});
+            saveWallpaperToDb(dataUrlToBlob(persisted.customBgImage as string)).catch(() => {});
             delete persisted.customBgImage;
           }
+        }
+        if (version < 17) {
+          delete persisted.glassBlur;
+          delete persisted.glassOpacity;
         }
         return persisted;
       },
@@ -543,8 +548,6 @@ export const useSettingsStore = create<SettingsState>()(
         customBgDim: state.customBgDim,
         customBgBlur: state.customBgBlur,
         chatBubbleGlass: state.chatBubbleGlass,
-        glassBlur: state.glassBlur,
-        glassOpacity: state.glassOpacity,
       }),
     },
   ),

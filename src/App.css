@@ -1406,13 +1406,17 @@ thead {
   background-position:
     var(--custom-bg-pos-x, 50%) var(--custom-bg-pos-y, 50%);
   background-repeat: no-repeat;
-  filter: blur(var(--custom-bg-blur, 0px));
-  -webkit-filter: blur(var(--custom-bg-blur, 0px));
+  filter: var(--custom-bg-filter, none);
+  -webkit-filter: var(--custom-bg-filter, none);
   z-index: -2;
   pointer-events: none;
+  contain: strict;
+}
+
+/* A blurred wallpaper is the only case that benefits from its own composited layer. */
+.custom-bg-active.custom-bg-blurred body::before {
   transform: translate3d(0, 0, 0);
   will-change: transform;
-  contain: strict;
 }
 
 /* Dedicated adaptive dimming mask layer to ensure 100% text readability */
@@ -1424,7 +1428,6 @@ thead {
   z-index: -1;
   pointer-events: none;
   transition: background-color 0.15s ease;
-  transform: translate3d(0, 0, 0);
 }
 
 /* Root background transparent when custom wallpaper is active */
@@ -1437,58 +1440,34 @@ thead {
   background: transparent !important;
 }
 
-/* Chat view: use clean translucent background without nested backdrop-filter to prevent GPU thrashing during streaming */
+/* Wallpaper mode: only the chat area lets the image through, every other panel stays solid */
 .custom-bg-active .bg-bg-chat {
   background-color: color-mix(
     in srgb,
-    var(--color-bg-primary, #F8F8FA) calc(var(--glass-opacity, 0.85) * 100%),
+    var(--color-bg-chat, #FFFFFF) 78%,
     transparent
   ) !important;
   background-image: none !important;
 }
 
-/* Static Glass panels — backdrop-filter blur + semi-transparent bg */
 .custom-bg-active .bg-bg-sidebar,
 .custom-bg-active .bg-bg-card,
 .custom-bg-active .bg-bg-input {
-  backdrop-filter: blur(var(--glass-blur, 8px));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 8px));
-  background-color: color-mix(
-    in srgb,
-    var(--color-bg-primary, #F8F8FA) calc(var(--glass-opacity, 0.85) * 100%),
-    transparent
-  ) !important;
   background-image: none !important;
-}
-
-/* Secondary panels also get glass */
-.custom-bg-active .bg-bg-secondary,
-.custom-bg-active .bg-bg-tertiary {
-  backdrop-filter: blur(var(--glass-blur, 8px));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 8px));
-  background-color: color-mix(
-    in srgb,
-    var(--color-bg-secondary, #F0F0F2) calc(var(--glass-opacity, 0.85) * 100%),
-    transparent
-  ) !important;
 }
 
 /* Keep user message bubbles solid */
 .custom-bg-active .bg-bg-user-msg {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   background: var(--skin-accent-gradient, var(--color-accent)) !important;
 }
 
-/* Frosted glass assistant message card when chatBubbleGlass is active */
+/* Assistant message card when chatBubbleGlass is active */
 .custom-bg-active.chat-bubble-glass-active .assistant-bubble {
   background: color-mix(
     in srgb,
-    var(--color-bg-primary, #ffffff) 82%,
+    var(--color-bg-card, #ffffff) 55%,
     transparent
   ) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid color-mix(in srgb, var(--color-border-subtle, rgba(255,255,255,0.2)) 50%, transparent);
   border-radius: 1.125rem;
   padding: 1rem 1.25rem;
@@ -1499,7 +1478,7 @@ thead {
 .dark.custom-bg-active.chat-bubble-glass-active .assistant-bubble {
   background: color-mix(
     in srgb,
-    var(--color-bg-primary, #18181b) 80%,
+    var(--color-bg-card, #18181b) 70%,
     transparent
   ) !important;
   border-color: rgba(255, 255, 255, 0.08);

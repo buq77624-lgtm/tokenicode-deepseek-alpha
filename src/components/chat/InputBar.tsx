@@ -555,7 +555,7 @@ export function InputBar() {
         return;
       case 'code':
         useSettingsStore.getState().setSessionMode('code');
-        feedback('mode', t('cmd.switchedToCode'), { mode: 'code', icon: '⚡' });
+        feedback('mode', t('cmd.switchedToCode'), { mode: 'code', icon: '</>' });
         return;
       case 'bypass':
         useSettingsStore.getState().setSessionMode('bypass');
@@ -839,7 +839,7 @@ export function InputBar() {
           setInputSync('');
           const modeVal = modeMap[cmdPart];
           const modeKey = `cmd.switchedTo${modeVal.charAt(0).toUpperCase() + modeVal.slice(1)}` as any;
-          const iconMap: Record<string, string> = { ask: '💬', plan: '📋', code: '⚡' };
+          const iconMap: Record<string, string> = { ask: '💬', plan: '📋', code: '</>' };
           addMessage(tabId, {
             id: generateMessageId(),
             role: 'system',
@@ -1718,10 +1718,9 @@ export function InputBar() {
               onClick={() => handleInterruptAndSend()}
               className="flex-shrink-0 self-end px-2.5 h-8 rounded-[10px]
                 bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border border-amber-500/30
-                flex items-center gap-1.5 text-xs font-medium transition-smooth cursor-pointer shadow-sm"
+                flex items-center text-xs font-medium transition-smooth cursor-pointer shadow-sm"
               title={t('queue.interruptAndSendHint')}
             >
-              <span className="text-sm leading-none">⚡</span>
               <span>{t('queue.interruptAndSend')}</span>
             </button>
           )}

@@ -26,7 +26,6 @@ import {
   getContextOutputTokens,
   hasMeaningfulContextUsage,
 } from './lib/context-usage';
-import { loadWallpaperFromDb } from './lib/wallpaper-storage';
 import './App.css';
 
 // --- Token state cache (survives F5 via sessionStorage) ---
@@ -128,8 +127,6 @@ function App() {
   const customBgDim = useSettingsStore((s) => s.customBgDim);
   const customBgBlur = useSettingsStore((s) => s.customBgBlur);
   const chatBubbleGlass = useSettingsStore((s) => s.chatBubbleGlass);
-  const glassBlur = useSettingsStore((s) => s.glassBlur);
-  const glassOpacity = useSettingsStore((s) => s.glassOpacity);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const monoFontFollowsInterface = useSettingsStore((s) => s.monoFontFollowsInterface);
@@ -476,13 +473,9 @@ function App() {
     root.classList.add(`bg-theme-${backgroundTheme}`);
   }, [backgroundTheme]);
 
-  // Hydrate wallpaper from IndexedDB on startup (bypasses localStorage 5MB limit)
+  // Hydrate wallpaper from IndexedDB on startup
   useEffect(() => {
-    loadWallpaperFromDb().then((dataUrl) => {
-      if (dataUrl && !useSettingsStore.getState().customBgImage) {
-        useSettingsStore.setState({ customBgImage: dataUrl });
-      }
-    });
+    useSettingsStore.getState().hydrateWallpaper();
   }, []);
 
   // Apply custom background image + glass morphism CSS variables
@@ -506,19 +499,21 @@ function App() {
       root.style.setProperty('--custom-bg-pos-x', `${customBgPositionX}%`);
       root.style.setProperty('--custom-bg-pos-y', `${customBgPositionY}%`);
       root.style.setProperty('--custom-bg-dim', `${customBgDim / 100}`);
-      root.style.setProperty('--custom-bg-blur', `${customBgBlur}px`);
-      root.style.setProperty('--glass-blur', `${glassBlur}px`);
-      root.style.setProperty('--glass-opacity', `${glassOpacity / 100}`);
+      if (customBgBlur > 0) {
+        root.classList.add('custom-bg-blurred');
+        root.style.setProperty('--custom-bg-filter', `blur(${customBgBlur}px)`);
+      } else {
+        root.classList.remove('custom-bg-blurred');
+        root.style.setProperty('--custom-bg-filter', 'none');
+      }
     } else {
-      root.classList.remove('custom-bg-active', 'chat-bubble-glass-active');
+      root.classList.remove('custom-bg-active', 'custom-bg-blurred', 'chat-bubble-glass-active');
       root.style.removeProperty('--custom-bg-image');
       root.style.removeProperty('--custom-bg-size');
       root.style.removeProperty('--custom-bg-pos-x');
       root.style.removeProperty('--custom-bg-pos-y');
       root.style.removeProperty('--custom-bg-dim');
-      root.style.removeProperty('--custom-bg-blur');
-      root.style.removeProperty('--glass-blur');
-      root.style.removeProperty('--glass-opacity');
+      root.style.removeProperty('--custom-bg-filter');
     }
   }, [
     customBgImage,
@@ -528,8 +523,6 @@ function App() {
     customBgDim,
     customBgBlur,
     chatBubbleGlass,
-    glassBlur,
-    glassOpacity,
   ]);
 
   // Update macOS dock icon when color theme changes

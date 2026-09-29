@@ -629,8 +629,6 @@ function CustomBackgroundSection() {
   const customBgDim = useSettingsStore((s) => s.customBgDim);
   const customBgBlur = useSettingsStore((s) => s.customBgBlur);
   const chatBubbleGlass = useSettingsStore((s) => s.chatBubbleGlass);
-  const glassBlur = useSettingsStore((s) => s.glassBlur);
-  const glassOpacity = useSettingsStore((s) => s.glassOpacity);
 
   const setCustomBgImage = useSettingsStore((s) => s.setCustomBgImage);
   const setCustomBgSize = useSettingsStore((s) => s.setCustomBgSize);
@@ -639,8 +637,6 @@ function CustomBackgroundSection() {
   const setCustomBgDim = useSettingsStore((s) => s.setCustomBgDim);
   const setCustomBgBlur = useSettingsStore((s) => s.setCustomBgBlur);
   const setChatBubbleGlass = useSettingsStore((s) => s.setChatBubbleGlass);
-  const setGlassBlur = useSettingsStore((s) => s.setGlassBlur);
-  const setGlassOpacity = useSettingsStore((s) => s.setGlassOpacity);
   const clearCustomBg = useSettingsStore((s) => s.clearCustomBg);
 
   const bgInputRef = useRef<HTMLInputElement>(null);
@@ -657,7 +653,7 @@ function CustomBackgroundSection() {
 
     try {
       const res = await optimizeWallpaperImage(file);
-      setCustomBgImage(res.dataUrl);
+      setCustomBgImage(res.blob);
 
       const origMb = (res.originalSize / (1024 * 1024)).toFixed(1);
       const optKb = Math.round(res.optimizedSize / 1024);
@@ -790,12 +786,12 @@ function CustomBackgroundSection() {
             min={0} max={30} unit="px"
             hint="虚化壁纸细节，保留色彩氛围的同时让对话内容更具层次感" />
 
-          {/* Frosted message cards switch */}
+          {/* Translucent message card switch */}
           <div className="flex items-center justify-between py-1 px-1 rounded-lg bg-bg-secondary/40 border border-border-subtle/40">
             <div className="pr-4">
-              <span className="text-xs font-medium text-text-primary block">消息磨砂玻璃卡片</span>
+              <span className="text-xs font-medium text-text-primary block">消息半透明卡片</span>
               <span className="text-[11px] text-text-tertiary leading-tight block">
-                为 AI 回复消息提供独立毛玻璃半透卡片，兼顾壁纸通透感与 100% 文字阅读清晰度
+                为 AI 回复消息提供独立半透卡片，透出壁纸氛围同时保持文字清晰
               </span>
             </div>
             <button
@@ -819,11 +815,6 @@ function CustomBackgroundSection() {
             left="左" right="右" />
           <Slider label="垂直偏移" value={customBgPositionY} onChange={setCustomBgPositionY}
             left="上" right="下" />
-          <Slider label="界面毛玻璃模糊" value={glassBlur} onChange={setGlassBlur}
-            min={0} max={20} unit="px" />
-          <Slider label="界面底色透明度" value={glassOpacity} onChange={setGlassOpacity}
-            min={30} max={100} unit="%"
-            hint="值越低底色越透，值越高越纯粹" />
         </div>
       )}
     </div>
