@@ -1396,7 +1396,7 @@ thead {
    Custom background image + glass morphism & adaptive contrast
    ================================================================ */
 
-/* Wallpaper image layer with independent blur support */
+/* Wallpaper image layer with independent blur support & GPU isolation */
 .custom-bg-active body::before {
   content: "";
   position: fixed;
@@ -1410,7 +1410,9 @@ thead {
   -webkit-filter: blur(var(--custom-bg-blur, 0px));
   z-index: -2;
   pointer-events: none;
-  transform: translateZ(0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  contain: strict;
 }
 
 /* Dedicated adaptive dimming mask layer to ensure 100% text readability */
@@ -1422,6 +1424,7 @@ thead {
   z-index: -1;
   pointer-events: none;
   transition: background-color 0.15s ease;
+  transform: translate3d(0, 0, 0);
 }
 
 /* Root background transparent when custom wallpaper is active */
@@ -1434,9 +1437,18 @@ thead {
   background: transparent !important;
 }
 
-/* Glass panels — backdrop-filter blur + semi-transparent bg */
+/* Chat view: use clean translucent background without nested backdrop-filter to prevent GPU thrashing during streaming */
+.custom-bg-active .bg-bg-chat {
+  background-color: color-mix(
+    in srgb,
+    var(--color-bg-primary, #F8F8FA) calc(var(--glass-opacity, 0.85) * 100%),
+    transparent
+  ) !important;
+  background-image: none !important;
+}
+
+/* Static Glass panels — backdrop-filter blur + semi-transparent bg */
 .custom-bg-active .bg-bg-sidebar,
-.custom-bg-active .bg-bg-chat,
 .custom-bg-active .bg-bg-card,
 .custom-bg-active .bg-bg-input {
   backdrop-filter: blur(var(--glass-blur, 8px));
@@ -1461,14 +1473,6 @@ thead {
   ) !important;
 }
 
-/* Input area needs slightly more opacity for readability */
-.custom-bg-active .bg-bg-input,
-.custom-bg-active input,
-.custom-bg-active textarea {
-  backdrop-filter: blur(calc(var(--glass-blur, 8px) * 1.2));
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur, 8px) * 1.2));
-}
-
 /* Keep user message bubbles solid */
 .custom-bg-active .bg-bg-user-msg {
   backdrop-filter: none !important;
@@ -1483,8 +1487,8 @@ thead {
     var(--color-bg-primary, #ffffff) 82%,
     transparent
   ) !important;
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid color-mix(in srgb, var(--color-border-subtle, rgba(255,255,255,0.2)) 50%, transparent);
   border-radius: 1.125rem;
   padding: 1rem 1.25rem;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { bridge, ProfileStats } from '../../lib/tauri-bridge';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { displayProviderModelName } from '../../lib/deepseek-models';
@@ -143,7 +144,7 @@ export function ProfileStatsModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center px-6 py-8"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -224,9 +225,9 @@ export function ProfileStatsModal({ open, onClose }: Props) {
                   ['活跃天数', `${stats.activeDays} 天`],
                   ['消息计数', stats.messageCount.toLocaleString()],
                 ].map(([label, value]) => (
-                  <div key={label} className="px-5 py-4 text-center border-r border-border-subtle last:border-r-0">
-                    <div className="text-[18px] font-semibold text-text-primary">{value}</div>
-                    <div className="mt-1 text-xs text-text-muted">{label}</div>
+                  <div key={label} className="px-3 py-4 text-center border-r border-border-subtle last:border-r-0 min-w-0">
+                    <div className="text-[17px] font-semibold text-text-primary truncate" title={String(value)}>{value}</div>
+                    <div className="mt-1 text-xs text-text-muted truncate" title={label}>{label}</div>
                   </div>
                 ))}
               </div>
@@ -383,6 +384,7 @@ export function ProfileStatsModal({ open, onClose }: Props) {
           />
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

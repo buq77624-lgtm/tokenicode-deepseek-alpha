@@ -288,6 +288,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'queue.interruptAndSendHint': '叫停当前生成，并立即以此消息优先执行 (快捷键: Alt+Enter)',
     'queue.jumpAndRun': '插队叫停',
     'queue.jumpAndRunHint': '叫停当前正在运行的操作，立即执行此条排队消息',
+    'queue.jumpShort': '插队',
+    'queue.recallShort': '撤回',
+    'queue.cancelShort': '取消',
     'queue.moveToTop': '置顶',
     'queue.moveToTopHint': '置顶为下一条执行的消息',
 
@@ -1048,6 +1051,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'queue.interruptAndSendHint': 'Interrupt current turn and execute this message immediately (Shortcut: Alt+Enter)',
     'queue.jumpAndRun': 'Jump & Run',
     'queue.jumpAndRunHint': 'Interrupt current generation and immediately execute this queued message',
+    'queue.jumpShort': 'Jump',
+    'queue.recallShort': 'Recall',
+    'queue.cancelShort': 'Cancel',
     'queue.moveToTop': 'Top',
     'queue.moveToTopHint': 'Move to top as the next message to execute',
 

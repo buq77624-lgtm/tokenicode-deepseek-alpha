@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useT } from '../../lib/i18n';
 
 interface AvatarCropModalProps {
@@ -139,7 +140,7 @@ export function AvatarCropModal({ imageFile, onSave, onCancel }: AvatarCropModal
 
   const minScale = naturalW ? CROP_SIZE / Math.min(naturalW, naturalH) : 1;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50"
       onClick={onCancel}>
       <div className="bg-bg-card rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 w-[320px]"
@@ -241,6 +242,7 @@ export function AvatarCropModal({ imageFile, onSave, onCancel }: AvatarCropModal
         {/* Hidden canvas for output */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -125,16 +125,13 @@ export function Sidebar() {
                 </span>
               </div>
             ) : (
-              <>
-                <span
-                  onClick={() => setProfileOpen(true)}
-                  className="text-[18px] font-bold tracking-wide text-text-primary cursor-pointer hover:opacity-85 transition-smooth"
-                  title="个人资料与使用统计"
-                >
-                  TOKEN<span className="text-accent">/</span>CODE
-                </span>
-                <span className="text-[16px] text-success">♧</span>
-              </>
+              <span
+                onClick={() => setProfileOpen(true)}
+                className="text-[18px] font-bold tracking-wide text-text-primary cursor-pointer hover:opacity-85 transition-smooth"
+                title="个人资料与使用统计"
+              >
+                TOKEN<span className="text-accent">/</span>CODE
+              </span>
             )}
 
             {/* 隐藏的头像文件上传 input */}

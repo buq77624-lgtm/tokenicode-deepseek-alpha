@@ -480,7 +480,7 @@ function App() {
   useEffect(() => {
     loadWallpaperFromDb().then((dataUrl) => {
       if (dataUrl && !useSettingsStore.getState().customBgImage) {
-        useSettingsStore.getState().setCustomBgImage(dataUrl);
+        useSettingsStore.setState({ customBgImage: dataUrl });
       }
     });
   }, []);

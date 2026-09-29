@@ -19,15 +19,29 @@ function openDb(): Promise<IDBDatabase> {
       reject(new Error('IndexedDB is not supported in this environment'));
       return;
     }
+    const timer = setTimeout(() => {
+      reject(new Error('IndexedDB open timeout'));
+    }, 2500);
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onblocked = () => {
+      clearTimeout(timer);
+      console.warn('[wallpaper-storage] IndexedDB open blocked');
+    };
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      clearTimeout(timer);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timer);
+      reject(request.error);
+    };
   });
 }
 
@@ -43,18 +57,23 @@ export async function saveWallpaperToDb(dataUrl: string): Promise<void> {
   });
 }
 
-/** Load active wallpaper Data URL from IndexedDB */
+/** Load active wallpaper Data URL from IndexedDB with safety timeout */
 export async function loadWallpaperFromDb(): Promise<string | null> {
   try {
     const db = await openDb();
     return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve(null), 2500);
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(WALLPAPER_KEY);
       req.onsuccess = () => {
+        clearTimeout(timer);
         resolve(req.result?.dataUrl || null);
       };
-      req.onerror = () => reject(req.error);
+      req.onerror = () => {
+        clearTimeout(timer);
+        reject(req.error);
+      };
     });
   } catch (err) {
     console.warn('[wallpaper-storage] failed to load from IndexedDB:', err);
@@ -104,9 +123,9 @@ export async function optimizeWallpaperImage(file: File): Promise<OptimizeResult
         try {
           let { width, height } = img;
 
-          // Max bounds for crisp display without wasteful memory consumption (4K UHD max)
-          const MAX_W = 3840;
-          const MAX_H = 2160;
+          // Max bounds for crisp display without wasteful memory consumption (QHD max 2560x1440)
+          const MAX_W = 2560;
+          const MAX_H = 1440;
 
           if (width > MAX_W || height > MAX_H) {
             const ratio = Math.min(MAX_W / width, MAX_H / height);
@@ -127,10 +146,10 @@ export async function optimizeWallpaperImage(file: File): Promise<OptimizeResult
           ctx.drawImage(img, 0, 0, width, height);
 
           // WebP format offers superior compression with high visual fidelity
-          let dataUrl = canvas.toDataURL('image/webp', 0.90);
+          let dataUrl = canvas.toDataURL('image/webp', 0.85);
           if (!dataUrl.startsWith('data:image/webp')) {
             // Fallback for browsers that don't support WebP export
-            dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+            dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           }
 
           // Approximate size in bytes from base64 string

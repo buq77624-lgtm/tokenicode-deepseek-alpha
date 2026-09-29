@@ -154,51 +154,8 @@ function UserMsg({ message }: Props) {
 
   return (
     <div className="flex justify-end gap-2.5 group/user relative">
-      {/* Copy button & Queued actions — visible on hover */}
+      {/* Copy button — visible on hover (Queued items use in-bubble header actions) */}
       <div className="absolute -top-2 right-1 z-10 opacity-0 group-hover/user:opacity-100 flex items-center gap-1 transition-smooth">
-        {message.isQueued && (
-          <>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('tokenicode:interrupt-and-send', { detail: { queueId: message.id } }));
-              }}
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-medium
-                bg-amber-500 text-white hover:brightness-110 shadow-sm
-                transition-smooth cursor-pointer flex items-center gap-0.5"
-              title={t('queue.jumpAndRunHint')}
-            >
-              <span>⚡</span>
-              <span>{t('queue.jumpAndRun')}</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const tabId = useSessionStore.getState().selectedSessionId;
-                if (tabId) useChatStore.getState().restorePendingMessageToDraft(tabId, message.id);
-              }}
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-medium
-                bg-accent text-text-inverse hover:brightness-110 shadow-sm
-                transition-smooth cursor-pointer"
-              title={t('queue.recall')}
-            >
-              {t('queue.recall')}
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const tabId = useSessionStore.getState().selectedSessionId;
-                if (tabId) useChatStore.getState().removePendingMessage(tabId, message.id);
-              }}
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-medium
-                bg-red-500/80 text-white hover:bg-red-500 shadow-sm
-                transition-smooth cursor-pointer"
-              title={t('queue.cancel')}
-            >
-              {t('queue.cancel')}
-            </button>
-          </>
-        )}
         <button
           onClick={handleCopy}
           className="px-1.5 py-0.5 rounded-md text-[10px] font-medium
@@ -212,25 +169,25 @@ function UserMsg({ message }: Props) {
       <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl rounded-br-md
         bg-bg-user-msg text-text-inverse
         text-sm leading-relaxed shadow-md whitespace-pre-wrap
-        ${message.isQueued ? 'ring-2 ring-accent/40 ring-offset-1 ring-offset-transparent' : ''}`}>
+        ${message.isQueued ? 'ring-2 ring-accent/40 ring-offset-1 ring-offset-transparent min-w-[280px]' : ''}`}>
         {/* Queued badge inside bubble header */}
         {message.isQueued && (
-          <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-white/20 text-xs">
-            <div className="inline-flex items-center gap-1.5 text-white/95 font-medium">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 mb-1.5 border-b border-white/20 text-xs">
+            <div className="inline-flex items-center gap-1.5 text-white/95 font-medium shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
               <span>{t('queue.inQueue', { pos: message.queuePosition ?? 1 })}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   window.dispatchEvent(new CustomEvent('tokenicode:interrupt-and-send', { detail: { queueId: message.id } }));
                 }}
-                className="px-1.5 py-0.5 rounded bg-amber-400/40 hover:bg-amber-400/60 text-[10px] text-white font-medium transition-smooth cursor-pointer flex items-center gap-0.5"
+                className="px-2 py-0.5 rounded bg-amber-400/40 hover:bg-amber-400/70 text-[11px] text-white font-medium transition-smooth cursor-pointer flex items-center gap-0.5 shadow-sm"
                 title={t('queue.jumpAndRunHint')}
               >
                 <span>⚡</span>
-                <span>{t('queue.jumpAndRun')}</span>
+                <span>{t('queue.jumpShort')}</span>
               </button>
               <button
                 onClick={(e) => {
@@ -238,10 +195,10 @@ function UserMsg({ message }: Props) {
                   const tabId = useSessionStore.getState().selectedSessionId;
                   if (tabId) useChatStore.getState().restorePendingMessageToDraft(tabId, message.id);
                 }}
-                className="px-1.5 py-0.5 rounded bg-white/20 hover:bg-white/30 text-[10px] text-white transition-smooth cursor-pointer"
+                className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/35 text-[11px] text-white transition-smooth cursor-pointer shadow-sm"
                 title={t('queue.recall')}
               >
-                {t('queue.recall')}
+                {t('queue.recallShort')}
               </button>
               <button
                 onClick={(e) => {
@@ -249,10 +206,10 @@ function UserMsg({ message }: Props) {
                   const tabId = useSessionStore.getState().selectedSessionId;
                   if (tabId) useChatStore.getState().removePendingMessage(tabId, message.id);
                 }}
-                className="px-1.5 py-0.5 rounded bg-white/20 hover:bg-red-500/60 text-[10px] text-white transition-smooth cursor-pointer"
+                className="px-2 py-0.5 rounded bg-white/20 hover:bg-red-500/70 text-[11px] text-white transition-smooth cursor-pointer shadow-sm"
                 title={t('queue.cancel')}
               >
-                {t('queue.cancel')}
+                {t('queue.cancelShort')}
               </button>
             </div>
           </div>
