@@ -214,6 +214,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'error.serviceUnavailable': '🔧 服务暂时繁忙，请稍后重试。',
     'error.cliNotInstalled': '⚙️ CLI 未正确安装，请在设置中重新安装。',
     'error.tokenLimit': '📏 对话太长了，请新建一个任务继续。',
+    'error.outputTokenLimit': '📏 单次回复超过了输出上限。请到 设置 → 通用 → 「单次回复输出上限」调高该值后重试。',
     'error.genericFallback': '出了点问题，请稍后重试。',
     'error.cliExitedSilently': 'CLI 意外退出且无输出，请检查 CLI 是否已正确安装（设置 → CLI），以及 API 服务商是否已配置。',
 
@@ -1004,6 +1005,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'error.serviceUnavailable': '🔧 Service is temporarily busy. Please try again later.',
     'error.cliNotInstalled': '⚙️ CLI is not properly installed. Please reinstall in settings.',
     'error.tokenLimit': '📏 Conversation is too long. Please start a new task to continue.',
+    'error.outputTokenLimit': '📏 The reply hit the per-turn output limit. Raise it under Settings → General → "Max output tokens per reply", then retry.',
     'error.genericFallback': 'Something went wrong. Please try again later.',
     'error.cliExitedSilently': 'CLI process exited unexpectedly without output. Please check that Claude CLI is installed correctly (Settings → CLI) and that your API provider is configured.',
 

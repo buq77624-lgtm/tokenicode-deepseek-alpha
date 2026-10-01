@@ -27,12 +27,15 @@ import {
 // message as primary text with raw error in a collapsible details block.
 // Unmatched errors get a generic fallback + raw details.
 const ERROR_CATEGORIES: ReadonlyArray<{ pattern: RegExp; i18nKey: string }> = [
+  // Quota before 401/403: gateways answer 403 for "insufficient quota", and matching
+  // the status code first would report a billing problem as a bad API key.
+  { pattern: /quota|insufficient (balance|credit|funds|quota)|out of credit|billing/i, i18nKey: 'error.quotaExceeded' },
   { pattern: /40[13]|unauthorized|invalid.*key|api.key.*invalid/i, i18nKey: 'error.invalidKey' },
   { pattern: /429|rate.limit|too.many.request/i, i18nKey: 'error.rateLimit' },
-  { pattern: /quota|insufficient.*balance|credit|billing/i, i18nKey: 'error.quotaExceeded' },
-  { pattern: /model.*not.found|invalid.*model|not_found.*model/i, i18nKey: 'error.modelNotFound' },
+  { pattern: /output token maximum|exceeded the \d+ output token/i, i18nKey: 'error.outputTokenLimit' },
+  { pattern: /model.*not.found|invalid.*model|not_found.*model|model.*not configured/i, i18nKey: 'error.modelNotFound' },
   { pattern: /timeout|timed?.out|ECONNREFUSED|ECONNRESET|ENOTFOUND/i, i18nKey: 'error.networkError' },
-  { pattern: /network|fetch.failed|dns/i, i18nKey: 'error.networkError' },
+  { pattern: /network|fetch.failed|dns|unable to connect|connection (refused|reset|error)|socket/i, i18nKey: 'error.networkError' },
   { pattern: /permission.denied|operation.not.permitted|access.denied|forbidden/i, i18nKey: 'error.permissionDenied' },
   { pattern: /overloaded|capacity|503|service.unavailable/i, i18nKey: 'error.serviceUnavailable' },
   { pattern: /not.installed|command.not.found/i, i18nKey: 'error.cliNotInstalled' },

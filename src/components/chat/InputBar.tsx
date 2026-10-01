@@ -16,7 +16,7 @@ import { RewindPanel } from './RewindPanel';
 import { MessageQueueBar } from './MessageQueueBar';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { useRewind } from '../../hooks/useRewind';
-import { useStreamProcessor, flushStreamBuffer } from '../../hooks/useStreamProcessor';
+import { useStreamProcessor, flushStreamBuffer, formatErrorForUser } from '../../hooks/useStreamProcessor';
 import { useAgentStore } from '../../stores/agentStore';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useT } from '../../lib/i18n';
@@ -169,6 +169,10 @@ function PlanToggleButton() {
 /* PlanApprovalBar removed — PlanReviewCard (triggered by ExitPlanMode detection)
    is the proper plan approval UI. The fallback bar was too broad: it appeared on
    every completed session in plan/bypass mode, even without a real plan. */
+
+/* Mirrors looks_like_cli_error() in the Rust stdout reader: the CLI reports API
+   failures and retry notices as plain text, not NDJSON. */
+const CLI_ERROR_LINE = /API Error|Failed to authenticate|currently unavailable|[Ii]nsufficient|Retrying in|exceeded the|overloaded/;
 
 export function InputBar() {
   const t = useT();
@@ -490,6 +494,8 @@ export function InputBar() {
   const handleStderrLineRef = useRef<(line: string, sid: string) => void>(() => {});
   /** Last non-empty stderr line — shown to user if process exits without response */
   const lastStderrRef = useRef('');
+  /** Last CLI error already surfaced mid-turn, so retries don't repeat it */
+  const surfacedErrRef = useRef('');
   /** Tracks whether auto-compact has been triggered in this session to avoid repeat fires */
   const autoCompactFiredRef = useRef(false);
   /** Tracks ExitPlanMode in current turn for Code mode auto-restart */
@@ -951,6 +957,7 @@ export function InputBar() {
     });
     useChatStore.getState().setActivityStatus(tabId, { phase: 'thinking' });
     lastStderrRef.current = ''; // Clear stale stderr before new turn
+    surfacedErrRef.current = ''; // Allow the same error to be reported again next turn
 
     // Initialize agent tracking — clear previous turn's agents (they may be from a
     // different project/session) and create a fresh main agent for this turn.
@@ -1362,6 +1369,24 @@ export function InputBar() {
     // Track last non-trivial stderr line for error reporting on unexpected exit
     if (clean && !/^\s*$/.test(clean)) {
       lastStderrRef.current = clean;
+    }
+
+    // Surface CLI failures as they happen. The process may still recover on a later
+    // retry, but the user should never be left watching a spinner with no explanation.
+    if (CLI_ERROR_LINE.test(clean) && clean !== surfacedErrRef.current) {
+      surfacedErrRef.current = clean;
+      const errTabId = useSessionStore.getState().selectedSessionId;
+      if (errTabId) {
+        addMessage(errTabId, {
+          id: generateMessageId(),
+          role: 'system',
+          type: 'text',
+          content: formatErrorForUser(clean),
+          timestamp: Date.now(),
+        });
+      }
+      // Already shown; stop the exit handler from repeating it.
+      lastStderrRef.current = '';
     }
 
     const stderrTabId = useSessionStore.getState().selectedSessionId;

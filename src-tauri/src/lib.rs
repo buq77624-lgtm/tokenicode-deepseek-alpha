@@ -29,6 +29,22 @@ fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r#"'\''"#))
 }
 
+/// The CLI writes API failures and retry notices to stdout as plain text, not NDJSON.
+/// These lines used to be discarded, so the UI could only spin until the process died.
+fn looks_like_cli_error(s: &str) -> bool {
+    const MARKERS: [&str; 8] = [
+        "API Error",
+        "Failed to authenticate",
+        "currently unavailable",
+        "insufficient",
+        "Insufficient",
+        "Retrying in",
+        "exceeded the",
+        "overloaded",
+    ];
+    MARKERS.iter().any(|m| s.contains(m))
+}
+
 /// Strip ANSI escape sequences from a string (terminal color/cursor codes).
 fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -2097,7 +2113,21 @@ async fn start_claude_session(
             // Parse every line as a JSON Value first (avoids serde enum pitfalls)
             let json = match serde_json::from_str::<Value>(&line) {
                 Ok(v) => v,
-                Err(_) => continue, // skip non-JSON lines
+                Err(_) => {
+                    // Non-JSON: the CLI's plain-text API errors and retry notices land
+                    // here. Forward them on the existing stderr channel so the user sees
+                    // what failed instead of a spinner; ignore other noise.
+                    let plain = strip_ansi(&line);
+                    let plain = plain.trim();
+                    if !plain.is_empty() && looks_like_cli_error(plain) {
+                        let _ = emit_to_frontend(
+                            &app_clone,
+                            &format!("claude:stderr:{}", sid_clone),
+                            Value::String(plain.to_string()),
+                        );
+                    }
+                    continue;
+                }
             };
             // Keep startup diagnostics without persisting prompts, responses,
             // thinking text, tool input, or other user data in application logs.
