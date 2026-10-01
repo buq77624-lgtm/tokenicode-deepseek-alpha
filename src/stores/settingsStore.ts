@@ -97,6 +97,8 @@ interface SettingsState {
   contextWindowMode: ContextWindowMode;
   /** User-adjustable auto compact threshold in tokens. */
   autoCompactThresholdTokens: number;
+  /** Per-turn output token ceiling injected as CLAUDE_CODE_MAX_OUTPUT_TOKENS. */
+  maxOutputTokens: number;
   /** Whether a newer version is available (set by auto-check on startup) */
   updateAvailable: boolean;
   /** Whether a newer CLI version is available */
@@ -172,6 +174,7 @@ interface SettingsState {
   setThinkingLevel: (level: ThinkingLevel) => void;
   setContextWindowMode: (mode: ContextWindowMode) => void;
   setAutoCompactThresholdTokens: (tokens: number) => void;
+  setMaxOutputTokens: (tokens: number) => void;
   setUpdateAvailable: (available: boolean, version?: string) => void;
   setUpdateDownloaded: (downloaded: boolean) => void;
   setLastSeenVersion: (version: string) => void;
@@ -231,6 +234,7 @@ export const useSettingsStore = create<SettingsState>()(
       thinkingLevel: 'medium' as ThinkingLevel,
       contextWindowMode: 'default',
       autoCompactThresholdTokens: 160_000,
+      maxOutputTokens: 64_000,
       updateAvailable: false,
       updateVersion: '',
       cliUpdateAvailable: false,
@@ -343,6 +347,11 @@ export const useSettingsStore = create<SettingsState>()(
 
       setAutoCompactThresholdTokens: (autoCompactThresholdTokens) =>
         set(() => ({ autoCompactThresholdTokens: clampAutoCompactThreshold(autoCompactThresholdTokens) })),
+
+      setMaxOutputTokens: (tokens) =>
+        set(() => ({
+          maxOutputTokens: Math.min(200_000, Math.max(1024, Math.round(Number(tokens) || 64_000))),
+        })),
 
       setUpdateAvailable: (available, version) =>
         set(() => ({
@@ -534,6 +543,7 @@ export const useSettingsStore = create<SettingsState>()(
         thinkingLevel: state.thinkingLevel,
         contextWindowMode: state.contextWindowMode,
         autoCompactThresholdTokens: state.autoCompactThresholdTokens,
+        maxOutputTokens: state.maxOutputTokens,
         updateAvailable: state.updateAvailable,
         updateVersion: state.updateVersion,
         lastSeenVersion: state.lastSeenVersion,

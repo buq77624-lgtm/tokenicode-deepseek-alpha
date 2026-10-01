@@ -161,6 +161,9 @@ pub struct StartSessionParams {
     pub provider_id: Option<String>,
     /// Declared model context window. Used to override Claude Code auto-compact window.
     pub context_window: Option<u32>,
+    /// Per-turn output token ceiling, injected as CLAUDE_CODE_MAX_OUTPUT_TOKENS.
+    /// None keeps the built-in default.
+    pub max_output_tokens: Option<u32>,
     /// Permission mode for CLI. Maps from frontend session modes:
     ///   "acceptEdits" (code mode) | "default" (ask mode) | "plan" | "bypassPermissions" (bypass)
     /// When not "bypassPermissions", enables --permission-prompt-tool stdio for structured

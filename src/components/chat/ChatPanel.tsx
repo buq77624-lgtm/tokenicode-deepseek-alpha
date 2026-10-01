@@ -1040,6 +1040,7 @@ async function startDraftSession(folderPath: string) {
       ),
       provider_id: providerId || undefined,
       context_window: getContextWindowForModel(resolvedModel, contextWindowMode),
+      max_output_tokens: useSettingsStore.getState().maxOutputTokens,
       permission_mode: mapSessionModeToPermissionMode(sessionMode),
     });
 

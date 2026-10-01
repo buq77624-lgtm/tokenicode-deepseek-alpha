@@ -156,6 +156,7 @@ export function GeneralTab() {
   const selectedModel = useSettingsStore((s) => s.selectedModel);
   const contextWindowMode = useSettingsStore((s) => s.contextWindowMode);
   const autoCompactThresholdTokens = useSettingsStore((s) => s.autoCompactThresholdTokens);
+  const maxOutputTokens = useSettingsStore((s) => s.maxOutputTokens);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const monoFontFollowsInterface = useSettingsStore((s) => s.monoFontFollowsInterface);
@@ -166,6 +167,7 @@ export function GeneralTab() {
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel);
   const setContextWindowMode = useSettingsStore((s) => s.setContextWindowMode);
   const setAutoCompactThresholdTokens = useSettingsStore((s) => s.setAutoCompactThresholdTokens);
+  const setMaxOutputTokens = useSettingsStore((s) => s.setMaxOutputTokens);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
   const setMonoFontFollowsInterface = useSettingsStore((s) => s.setMonoFontFollowsInterface);
@@ -549,6 +551,44 @@ export function GeneralTab() {
           </div>
           <p className="mt-2 text-xs text-text-tertiary leading-relaxed">
             这个值会直接决定自动发送 `/compact` 的时机；改完后对当前会话立即生效。
+          </p>
+        </div>
+
+        {/* Max output tokens */}
+        <div>
+          <h3 className="text-[13px] font-medium text-text-primary mb-2">单次回复输出上限</h3>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={200}
+              step={4}
+              value={Math.round(maxOutputTokens / 1000)}
+              onChange={(e) => setMaxOutputTokens(Number(e.target.value) * 1000)}
+              className="w-28 px-3 py-2 text-[13px] bg-bg-chat border border-border-subtle
+                rounded-lg text-text-primary focus:outline-none focus:border-accent"
+            />
+            <span className="text-xs text-text-tertiary">K tokens</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[32, 64, 100, 128].map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setMaxOutputTokens(value * 1000)}
+                  className={`px-2 py-1 rounded-md text-[11px] border transition-smooth
+                    ${Math.round(maxOutputTokens / 1000) === value
+                      ? 'bg-accent/10 text-accent border-accent/30'
+                      : 'text-text-muted hover:bg-bg-secondary border-border-subtle'
+                    }`}
+                >
+                  {value}K
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-text-tertiary leading-relaxed">
+            报错 <code>exceeded the 64000 output token maximum</code> 就是这个上限。调高后
+            <b className="text-text-secondary">下一条消息生效</b>（它是在启动模型进程时注入的）。
+            注意别超过你所用模型本身的最大输出，否则会变成服务商返回的另一种报错。
           </p>
         </div>
 

@@ -1705,6 +1705,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
                   session_mode: (sessionMode === 'ask' || sessionMode === 'plan') ? sessionMode : undefined,
                   provider_id: useProviderStore.getState().activeProviderId || undefined,
                   context_window: getContextWindowForModel(retryResolvedModel, retryContextWindowMode),
+                  max_output_tokens: useSettingsStore.getState().maxOutputTokens,
                   permission_mode: mapSessionModeToPermissionMode(sessionMode),
                 });
 

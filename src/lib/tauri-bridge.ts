@@ -21,6 +21,8 @@ export interface StartSessionParams {
   provider_id?: string;
   /** Declared model context window, e.g. 1000000 for compatible DeepSeek/CC Switch routes. */
   context_window?: number;
+  /** Per-turn output ceiling (CLAUDE_CODE_MAX_OUTPUT_TOKENS). Omit to use the default. */
+  max_output_tokens?: number;
   /** Permission mode for CLI control protocol.
    *  "acceptEdits" | "default" | "plan" | "bypassPermissions"
    *  When not "bypassPermissions", enables structured permission requests via SDK protocol. */

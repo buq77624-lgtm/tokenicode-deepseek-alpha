@@ -1760,12 +1760,16 @@ async fn start_claude_session(
         );
     }
 
-    // Raise the per-turn output token cap from the CLI default (32K) to 64K.
-    // This prevents "response exceeded the 32000 output token maximum" errors
-    // when generating large files (e.g. HTML presentations).
-    resolved_env
-        .entry("CLAUDE_CODE_MAX_OUTPUT_TOKENS".to_string())
-        .or_insert_with(|| "64000".to_string());
+    // Per-turn output ceiling. The CLI ships 32K; TokeniCode raised it to 64K so large
+    // file generation wouldn't die on "exceeded the 32000 output token maximum" — but 64K
+    // is itself reachable, so the setting now decides. A provider's extra_env still wins.
+    if !resolved_env.contains_key("CLAUDE_CODE_MAX_OUTPUT_TOKENS") {
+        let cap = params
+            .max_output_tokens
+            .filter(|n| *n >= 1024)
+            .unwrap_or(64_000);
+        resolved_env.insert("CLAUDE_CODE_MAX_OUTPUT_TOKENS".to_string(), cap.to_string());
+    }
 
     // Enable CLI-managed file checkpoints for rewind functionality.
     // With --replay-user-messages, user messages in stream output carry a uuid

@@ -1262,6 +1262,7 @@ export function InputBar() {
           session_mode: (liveSessionMode === 'ask' || liveSessionMode === 'plan') ? liveSessionMode : undefined,
           provider_id: liveProviderId || undefined,
           context_window: liveContextWindow,
+          max_output_tokens: useSettingsStore.getState().maxOutputTokens,
           permission_mode: mapSessionModeToPermissionMode(liveSessionMode),
         });
         console.log('[TOKENICODE:session] started successfully', { sessionId: session.session_id, pid: session.pid, cli: session.cli_path });
