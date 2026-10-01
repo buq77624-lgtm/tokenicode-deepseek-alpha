@@ -35,6 +35,7 @@ export const CHANGELOG: ChangelogEntry[] = [
             '显示该文件当前指向哪个地址、是否与所选提供商一致；检测到本程序不会写入的 ANTHROPIC_AUTH_TOKEN 时提示可能与 CC-Switch 冲突',
             '「清除写入项」按钮，只移除 TokeniCode 写过的键，文件里其余内容原样保留',
             '设置 → 通用：单次回复输出上限可调（原先固定 64000），用于解决 exceeded the 64000 output token maximum',
+            '斜杠命令改为动态获取：接住 CLI 启动时推送的 commands_changed，命令面板不再依赖写死的 24 条，CLI 新增的内置命令（/verify、/code-review、/config、/effort、/autocompact 等）会自动出现',
           ],
           en: [
             'Settings → API Providers: a "Sync to Claude Code global config" switch that writes base URL, key and model mappings into ~/.claude/settings.json on provider switch',
@@ -42,6 +43,7 @@ export const CHANGELOG: ChangelogEntry[] = [
             'Shows where that file currently points and whether it matches the selected provider; warns about a possible CC-Switch conflict when ANTHROPIC_AUTH_TOKEN is present',
             'A "Remove written keys" action that unsets only what TokeniCode wrote',
             'Settings → General: configurable per-turn output token ceiling (previously fixed at 64000), resolving "exceeded the 64000 output token maximum"',
+            'Slash commands are now discovered dynamically: the CLI\u0027s commands_changed push is consumed, so the palette no longer depends on a hardcoded 24 entries and new CLI builtins (/verify, /code-review, /config, /effort, /autocompact) appear automatically',
           ],
         },
       },

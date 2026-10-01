@@ -8,6 +8,7 @@ import {
   getAutoCompactThreshold,
 } from '../stores/settingsStore';
 import { useSessionStore } from '../stores/sessionStore';
+import { useCommandStore } from '../stores/commandStore';
 import { useAgentStore, resolveAgentId, getAgentDepth } from '../stores/agentStore';
 import { useFileStore } from '../stores/fileStore';
 import { bridge, onClaudeStream, onClaudeStderr } from '../lib/tauri-bridge';
@@ -849,6 +850,12 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
     }
     if (!KNOWN_TYPES.has(msg.type)) {
       console.warn('[TOKENICODE:stream] unhandled message type:', msg.type, msg);
+    }
+
+    // The CLI advertises its real command list on session start and whenever it
+    // changes. This is a global store update, so handle before per-tab routing.
+    if (msg.type === 'system' && msg.subtype === 'commands_changed' && Array.isArray(msg.commands)) {
+      useCommandStore.getState().mergeCliCommands(msg.commands);
     }
 
     // --- Background routing: detect if this stream belongs to a non-active tab ---

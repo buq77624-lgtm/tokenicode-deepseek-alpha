@@ -304,6 +304,15 @@ export interface UnifiedCommand {
   execution?: 'ui' | 'cli' | 'session';
 }
 
+/** A command as advertised by the CLI in its system/commands_changed message. */
+export interface CliAdvertisedCommand {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  aliases?: string[];
+  builtin?: boolean;
+}
+
 // --- Bridge ---
 
 export const bridge = {
