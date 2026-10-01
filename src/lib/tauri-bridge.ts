@@ -266,6 +266,30 @@ export interface ProvidersFile {
   }[];
 }
 
+/** What ~/.claude/settings.json currently points at, from TokeniCode's point of view. */
+export interface ClaudeSettingsStatus {
+  path: string;
+  exists: boolean;
+  baseUrl: string;
+  model: string;
+  /** ANTHROPIC_AUTH_TOKEN is set, which TokeniCode never writes — another tool owns the file. */
+  foreignAuthToken: boolean;
+  /** The file already matches the selected provider. */
+  inSync: boolean;
+  expectedBaseUrl: string;
+  providerName: string;
+}
+
+export interface ClaudeSyncResult {
+  changed: boolean;
+  skipped: boolean;
+  providerName: string;
+  baseUrl: string;
+  tiers: string[];
+  backup: string;
+  message: string;
+}
+
 export interface UnifiedCommand {
   name: string;
   description: string;
@@ -603,6 +627,18 @@ export const bridge = {
 
   testProviderConnection: (baseUrl: string, apiFormat: string, apiKey: string, model: string, proxyUrl?: string) =>
     invoke<ConnectionTestResult>('test_provider_connection', { baseUrl, apiFormat, apiKey, model, proxyUrl: proxyUrl || null }),
+
+  /** Read ~/.claude/settings.json so the UI can show who currently owns it. */
+  readClaudeSettings: (providerId?: string | null) =>
+    invoke<ClaudeSettingsStatus>('read_claude_settings', { providerId: providerId || null }),
+
+  /** Write the selected provider into ~/.claude/settings.json (backup + verify + rollback). */
+  syncClaudeSettings: (providerId: string | null) =>
+    invoke<ClaudeSyncResult>('sync_claude_settings', { providerId }),
+
+  /** Remove only the keys TokeniCode wrote, leaving everything else in the file intact. */
+  clearClaudeSettings: () =>
+    invoke<ClaudeSyncResult>('clear_claude_settings'),
 
 
   // --- SDK Control Protocol ---

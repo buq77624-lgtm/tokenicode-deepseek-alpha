@@ -141,6 +141,8 @@ interface SettingsState {
   customBgBlur: number;
   /** Whether AI messages render on their own translucent card */
   chatBubbleGlass: boolean;
+  /** Mirror the active provider into ~/.claude/settings.json so the `claude` CLI matches. */
+  syncClaudeSettings: boolean;
 
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
@@ -190,6 +192,7 @@ interface SettingsState {
   setCustomBgDim: (dim: number) => void;
   setCustomBgBlur: (blur: number) => void;
   setChatBubbleGlass: (enabled: boolean) => void;
+  setSyncClaudeSettings: (enabled: boolean) => void;
   clearCustomBg: () => void;
 }
 
@@ -249,6 +252,7 @@ export const useSettingsStore = create<SettingsState>()(
       customBgDim: 20,
       customBgBlur: 0,
       chatBubbleGlass: true,
+      syncClaudeSettings: false,
 
       toggleTheme: () =>
         set((state) => ({ theme: nextTheme(state.theme) })),
@@ -385,6 +389,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCustomBgDim: (dim) => set(() => ({ customBgDim: Math.max(0, Math.min(80, dim)) })),
       setCustomBgBlur: (blur) => set(() => ({ customBgBlur: Math.max(0, Math.min(30, blur)) })),
       setChatBubbleGlass: (chatBubbleGlass) => set(() => ({ chatBubbleGlass })),
+      setSyncClaudeSettings: (syncClaudeSettings) => set(() => ({ syncClaudeSettings })),
       clearCustomBg: () => {
         const previous = get().customBgImage;
         if (previous.startsWith('blob:')) URL.revokeObjectURL(previous);
@@ -548,6 +553,7 @@ export const useSettingsStore = create<SettingsState>()(
         customBgDim: state.customBgDim,
         customBgBlur: state.customBgBlur,
         chatBubbleGlass: state.chatBubbleGlass,
+        syncClaudeSettings: state.syncClaudeSettings,
       }),
     },
   ),

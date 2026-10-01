@@ -1071,6 +1071,299 @@ fn save_providers(data: ProvidersFile) -> Result<(), String> {
     Ok(())
 }
 
+// --- Claude Code global settings sync --------------------------------------------------
+// The provider list doubles as the source of truth for ~/.claude/settings.json so the
+// standalone `claude` CLI and this app never disagree. CC Switch writes the same file,
+// so the read command also reports what that file currently points at.
+
+/// Keys this module owns. Anything else in `env` is left untouched.
+const CLAUDE_SYNC_KEYS: &[&str] = &[
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
+];
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaudeSettingsStatus {
+    path: String,
+    exists: bool,
+    base_url: String,
+    model: String,
+    /// An auth token is set that this module never writes (CC Switch does).
+    foreign_auth_token: bool,
+    /// The file already matches what the selected provider would write.
+    in_sync: bool,
+    /// Selected provider's base URL, empty in inherit mode.
+    expected_base_url: String,
+    provider_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaudeSyncResult {
+    changed: bool,
+    skipped: bool,
+    provider_name: String,
+    base_url: String,
+    tiers: Vec<String>,
+    backup: String,
+    message: String,
+}
+
+fn claude_settings_path() -> Result<std::path::PathBuf, String> {
+    let home = dirs::home_dir().ok_or("Cannot resolve home directory")?;
+    Ok(home.join(".claude").join("settings.json"))
+}
+
+fn read_settings_root(path: &std::path::Path) -> serde_json::Value {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+/// Build the env block for one provider, plus a human-readable tier summary.
+fn claude_env_for(provider: &ApiProvider) -> Result<(serde_json::Map<String, serde_json::Value>, Vec<String>), String> {
+    let base_url = provider.base_url.trim_end_matches('/').to_string();
+    if base_url.is_empty() {
+        return Err(format!("提供商「{}」还没有填接口地址", provider.name));
+    }
+    let key = provider.api_key.clone().unwrap_or_default();
+    if key.is_empty() {
+        return Err(format!("提供商「{}」还没有填 API 密钥", provider.name));
+    }
+
+    let mut tiers: HashMap<String, String> = HashMap::new();
+    for m in &provider.model_mappings {
+        if !m.tier.is_empty() && !m.provider_model.is_empty() {
+            tiers.entry(m.tier.clone()).or_insert_with(|| m.provider_model.clone());
+        }
+    }
+    let fallback = tiers
+        .get("sonnet")
+        .or_else(|| tiers.get("opus"))
+        .or_else(|| tiers.get("haiku"))
+        .or_else(|| tiers.values().next())
+        .cloned()
+        .ok_or_else(|| format!("提供商「{}」还没有配置任何模型映射", provider.name))?;
+    let tier = |k: &str| tiers.get(k).cloned().unwrap_or_else(|| fallback.clone());
+    let fable = || tiers.get("fable").cloned().unwrap_or_else(|| tier("opus"));
+
+    let mut env = serde_json::Map::new();
+    let mut put = |k: &str, v: String| {
+        env.insert(k.to_string(), serde_json::Value::String(v));
+    };
+    // Deliberately no ANTHROPIC_AUTH_TOKEN: it switches the CLI to Bearer auth, which
+    // third-party gateways reject. Same reasoning as resolve_provider_env().
+    put("ANTHROPIC_API_KEY", key);
+    put("ANTHROPIC_BASE_URL", base_url);
+    put("ANTHROPIC_MODEL", fallback.clone());
+    put("ANTHROPIC_DEFAULT_OPUS_MODEL", tier("opus"));
+    put("ANTHROPIC_DEFAULT_OPUS_MODEL_NAME", tier("opus"));
+    put("ANTHROPIC_DEFAULT_SONNET_MODEL", tier("sonnet"));
+    put("ANTHROPIC_DEFAULT_SONNET_MODEL_NAME", tier("sonnet"));
+    put("ANTHROPIC_DEFAULT_HAIKU_MODEL", tier("haiku"));
+    put("ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME", tier("haiku"));
+    put("ANTHROPIC_DEFAULT_FABLE_MODEL", fable());
+    put("ANTHROPIC_DEFAULT_FABLE_MODEL_NAME", fable());
+    put("CLAUDE_CODE_SUBAGENT_MODEL", tier("haiku"));
+
+    let summary = vec![
+        format!("opus={}", tier("opus")),
+        format!("sonnet={}", tier("sonnet")),
+        format!("haiku={}", tier("haiku")),
+    ];
+    Ok((env, summary))
+}
+
+/// Merge `set` into settings.json (and drop `remove`), with backup + verify + rollback.
+fn apply_claude_settings(
+    set: serde_json::Map<String, serde_json::Value>,
+    remove: &[&str],
+    label: &str,
+) -> Result<ClaudeSyncResult, String> {
+    let path = claude_settings_path()?;
+    let backup = path
+        .parent()
+        .map(|p| p.join("settings.tokenicode.bak").display().to_string())
+        .unwrap_or_default();
+
+    let original = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut root = read_settings_root(&path);
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+
+    let changed = {
+        let obj = root.as_object_mut().ok_or("settings.json root is not an object")?;
+        let env = obj
+            .entry("env")
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        let env_map = env
+            .as_object_mut()
+            .ok_or("settings.json 里的 env 不是对象，为避免破坏文件已中止")?;
+        let mut dirty = false;
+        for k in remove {
+            if env_map.remove(*k).is_some() {
+                dirty = true;
+            }
+        }
+        for (k, v) in set {
+            if env_map.get(&k) != Some(&v) {
+                env_map.insert(k, v);
+                dirty = true;
+            }
+        }
+        dirty
+    };
+
+    if !changed {
+        return Ok(ClaudeSyncResult {
+            changed: false,
+            skipped: false,
+            provider_name: label.to_string(),
+            base_url: String::new(),
+            tiers: vec![],
+            backup: String::new(),
+            message: "already-in-sync".to_string(),
+        });
+    }
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create ~/.claude: {}", e))?;
+    }
+    if !original.is_empty() {
+        std::fs::write(&backup, &original).map_err(|e| format!("Cannot write backup: {}", e))?;
+    }
+
+    let out = serde_json::to_string_pretty(&root).map_err(|e| format!("Serialize error: {}", e))?;
+    std::fs::write(&path, format!("{}\n", out)).map_err(|e| format!("Write error: {}", e))?;
+
+    // Verify the write actually landed; roll back on any mismatch.
+    let verify = read_settings_root(&path);
+    let want = root.get("env").and_then(|e| e.get("ANTHROPIC_BASE_URL"));
+    let got = verify.get("env").and_then(|e| e.get("ANTHROPIC_BASE_URL"));
+    if want != got {
+        if !original.is_empty() {
+            let _ = std::fs::write(&path, &original);
+        }
+        return Err("写入后校验不通过，已自动恢复原配置".to_string());
+    }
+
+    Ok(ClaudeSyncResult {
+        changed: true,
+        skipped: false,
+        provider_name: label.to_string(),
+        base_url: got
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string(),
+        tiers: vec![],
+        backup,
+        message: "written".to_string(),
+    })
+}
+
+#[tauri::command]
+fn read_claude_settings(provider_id: Option<String>) -> Result<ClaudeSettingsStatus, String> {
+    let path = claude_settings_path()?;
+    let exists = path.exists();
+    let root = read_settings_root(&path);
+    let env = root.get("env").and_then(|e| e.as_object());
+    let get = |k: &str| env
+        .and_then(|e| e.get(k))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let (mut expected_base, mut name) = (String::new(), String::new());
+    let mut in_sync = false;
+    if let Some(pid) = provider_id.as_deref().filter(|s| !s.is_empty()) {
+        let file = load_providers()?;
+        if let Some(p) = file.providers.iter().find(|p| p.id == pid) {
+            name = p.name.clone();
+            if let Ok((env_map, _)) = claude_env_for(p) {
+                expected_base = env_map
+                    .get("ANTHROPIC_BASE_URL")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                in_sync = CLAUDE_SYNC_KEYS.iter().all(|k| {
+                    let want = env_map.get(*k);
+                    let have = env.and_then(|e| e.get(*k));
+                    want == have
+                });
+            }
+        }
+    }
+
+    Ok(ClaudeSettingsStatus {
+        path: path.display().to_string(),
+        exists,
+        base_url: get("ANTHROPIC_BASE_URL"),
+        model: get("ANTHROPIC_MODEL"),
+        foreign_auth_token: !get("ANTHROPIC_AUTH_TOKEN").is_empty(),
+        in_sync,
+        expected_base_url: expected_base,
+        provider_name: name,
+    })
+}
+
+#[tauri::command]
+fn sync_claude_settings(provider_id: Option<String>) -> Result<ClaudeSyncResult, String> {
+    let Some(pid) = provider_id.filter(|s| !s.is_empty()) else {
+        return Ok(ClaudeSyncResult {
+            changed: false,
+            skipped: true,
+            provider_name: String::new(),
+            base_url: String::new(),
+            tiers: vec![],
+            backup: String::new(),
+            message: "inherit-mode".to_string(),
+        });
+    };
+    let file = load_providers()?;
+    let provider = file
+        .providers
+        .iter()
+        .find(|p| p.id == pid)
+        .ok_or("提供商不存在，可能已被删除")?;
+    if provider.api_format.eq_ignore_ascii_case("openai_responses") {
+        return Err(format!(
+            "提供商「{}」用的是非 Anthropic 格式，Claude Code 全局配置写不了",
+            provider.name
+        ));
+    }
+    let (env, tiers) = claude_env_for(provider)?;
+    // A stale ANTHROPIC_AUTH_TOKEN left by another tool makes the CLI use Bearer auth
+    // with that value; settings.json env is applied to the CLI process, so it has to go.
+    let mut res = apply_claude_settings(env, &["ANTHROPIC_AUTH_TOKEN"], &provider.name)?;
+    res.tiers = tiers;
+    res.base_url = provider.base_url.trim_end_matches('/').to_string();
+    Ok(res)
+}
+
+#[tauri::command]
+fn clear_claude_settings() -> Result<ClaudeSyncResult, String> {
+    let mut res = apply_claude_settings(
+        serde_json::Map::new(),
+        CLAUDE_SYNC_KEYS,
+        "cleared",
+    )?;
+    res.message = "cleared".to_string();
+    Ok(res)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepResult {
     ok: bool,
@@ -1400,9 +1693,13 @@ async fn start_claude_session(
         args.push(resume_id.clone());
     }
 
-    if let Some(ref model) = params.model {
-        args.push("--model".to_string());
-        args.push(model.clone());
+    // provider_id = None means "inherit the global Claude config", and that config owns
+    // the model name. Passing --model here would override it with TokeniCode's own id.
+    if params.provider_id.is_some() {
+        if let Some(ref model) = params.model {
+            args.push("--model".to_string());
+            args.push(model.clone());
+        }
     }
 
     if let Some(ref tools) = params.allowed_tools {
@@ -1486,7 +1783,7 @@ async fn start_claude_session(
             if m.contains("mimo") || m.contains("[1m]") { 1_000_000 } else { 200_000 }
         }).unwrap_or(200_000)
     });
-    if declared_context_window >= 1_000_000 {
+    if params.provider_id.is_some() && declared_context_window >= 1_000_000 {
         resolved_env.insert(
             "CLAUDE_CODE_AUTO_COMPACT_WINDOW".to_string(),
             declared_context_window.to_string(),
@@ -7918,14 +8215,15 @@ async fn generate_session_title(
                 .map(|m| m.provider_model.clone())
         });
         match haiku_model {
-            Some(m) => (env, keys, normalize_deepseek_model_name(&m)),
+            Some(m) => (env, keys, Some(normalize_deepseek_model_name(&m))),
             None => return Err("SKIP: no haiku mapping for provider".to_string()),
         }
     } else {
+        // Inherit mode: let Claude Code use the model from its own global settings.
         (
             HashMap::new(),
             vec![],
-            "deepseek-v4-flash".to_string(),
+            None,
         )
     };
 
@@ -7935,17 +8233,21 @@ async fn generate_session_title(
     let enriched_path = build_enriched_path();
 
     // Spawn a one-shot CLI process: -p for single prompt, --output-format json for structured output
-    let args = vec![
+    let mut args = vec![
         "-p".to_string(),
         prompt,
-        "--model".to_string(),
-        model_name,
+    ];
+    if let Some(model_name) = model_name {
+        args.push("--model".to_string());
+        args.push(model_name);
+    }
+    args.extend(vec![
         "--output-format".to_string(),
         "json".to_string(),
         "--max-turns".to_string(),
         "1".to_string(),
         "--dangerously-skip-permissions".to_string(),
-    ];
+    ]);
 
     let mut cmd = tokio::process::Command::new(&claude_bin);
     cmd.args(&args)
@@ -8264,6 +8566,9 @@ pub fn run() {
             generate_session_title,
             load_providers,
             save_providers,
+            read_claude_settings,
+            sync_claude_settings,
+            clear_claude_settings,
             test_provider_connection,
             respond_permission,
             send_control_request,

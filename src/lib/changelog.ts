@@ -19,6 +19,76 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.9',
+    date: '2026-10-01',
+    highlights: {
+      zh: ['可把选中的提供商一键同步给 Claude Code 命令行，继承模式不再错用模型名'],
+      en: ['Sync the active provider to the Claude Code CLI; inherit mode no longer forces a wrong model'],
+    },
+    categories: [
+      {
+        label: { zh: '新增', en: 'Added' },
+        items: {
+          zh: [
+            '设置 → API 提供商：「同步到 Claude Code 全局配置」开关，切换提供商时把接口地址、密钥和模型映射一并写入 ~/.claude/settings.json，命令行与 app 从此用同一份配置',
+            '写入前自动备份到 ~/.claude/settings.tokenicode.bak，写入后立即校验，失败自动回滚',
+            '显示该文件当前指向哪个地址、是否与所选提供商一致；检测到本程序不会写入的 ANTHROPIC_AUTH_TOKEN 时提示可能与 CC-Switch 冲突',
+            '「清除写入项」按钮，只移除 TokeniCode 写过的键，文件里其余内容原样保留',
+          ],
+          en: [
+            'Settings → API Providers: a "Sync to Claude Code global config" switch that writes base URL, key and model mappings into ~/.claude/settings.json on provider switch',
+            'Automatic backup to ~/.claude/settings.tokenicode.bak before writing, with verification and rollback on failure',
+            'Shows where that file currently points and whether it matches the selected provider; warns about a possible CC-Switch conflict when ANTHROPIC_AUTH_TOKEN is present',
+            'A "Remove written keys" action that unsets only what TokeniCode wrote',
+          ],
+        },
+      },
+      {
+        label: { zh: '修复', en: 'Fixed' },
+        items: {
+          zh: [
+            '「继承系统配置」仍会用 TokeniCode 的模型名覆盖全局配置的模型，导致第三方网关收到不认识的模型名而报错',
+            '继承模式下按 TokeniCode 模型名推断的 1M 上下文窗口不再注入全局配置',
+            '会话标题生成在继承模式下硬塞 deepseek-v4-flash 模型名，改为交给全局配置决定',
+          ],
+          en: [
+            'Inherit-system-config mode overrode the global model name, making third-party gateways reject the request',
+            'The 1M auto-compact window inferred from TokeniCode model names is no longer injected in inherit mode',
+            'Session title generation no longer forces deepseek-v4-flash while inheriting system config',
+          ],
+        },
+      },
+      {
+        label: { zh: '变更', en: 'Changed' },
+        items: {
+          zh: [
+            '壁纸改存 IndexedDB Blob + object URL，不再以 base64 字符串常驻 JS 堆；旧记录自动迁移',
+            '壁纸解码上限由固定 2560×1440 改为按屏幕尺寸 × devicePixelRatio 推导',
+            '壁纸层仅在开启景深虚化时才提升为独立合成层',
+          ],
+          en: [
+            'Wallpapers are stored as an IndexedDB Blob behind an object URL instead of a base64 string; legacy records migrate automatically',
+            'Wallpaper decode size now follows screen size × devicePixelRatio instead of a fixed 2560×1440',
+            'The wallpaper layer is promoted to its own compositing layer only while wallpaper blur is enabled',
+          ],
+        },
+      },
+      {
+        label: { zh: '移除', en: 'Removed' },
+        items: {
+          zh: [
+            '壁纸模式下的毛玻璃（backdrop-filter）与半透明面板覆写：面板改用主题实色，聊天区透出壁纸，AI 回复卡片保持半透明',
+            '已失效的「界面毛玻璃模糊」和「界面底色透明度」两个滑杆，以及 glassBlur / glassOpacity 等无人读取的状态',
+          ],
+          en: [
+            'Frosted-glass backdrop-filter and translucent panel overrides in wallpaper mode: panels use solid theme colors, the chat area shows the wallpaper, AI reply cards stay translucent',
+            'The dead "glass blur" and "glass opacity" sliders along with their unread store fields',
+          ],
+        },
+      },
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-08-04',
     highlights: {
