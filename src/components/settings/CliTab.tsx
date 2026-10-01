@@ -33,6 +33,8 @@ export function CliTab() {
   const [gitBashMissing, setGitBashMissing] = useState(false);
   const [downloadPercent, setDownloadPercent] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'downloading' | 'configuring' | 'npm_fallback' | 'node_downloading' | 'node_extracting' | 'git_downloading' | 'git_extracting' | 'native_version' | 'native_manifest' | 'native_download' | 'native_verify' | 'native_install'>('idle');
+  const cliUpdateAvailable = useSettingsStore((s) => s.cliUpdateAvailable);
+  const cliLatestVersion = useSettingsStore((s) => s.cliLatestVersion);
 
   // Auto-check on mount
   useEffect(() => {
@@ -173,10 +175,10 @@ export function CliTab() {
       )}
 
       {/* CLI update available */}
-      {useSettingsStore.getState().cliUpdateAvailable && (status === 'found' || status === 'idle') && (
+      {cliUpdateAvailable && (status === 'found' || status === 'idle') && (
         <div className="py-2 px-3 rounded-lg bg-accent/10">
           <p className="text-[13px] text-accent font-medium">
-            {t('cli.update')} — v{useSettingsStore.getState().cliLatestVersion} {t('update.available') || 'available'}
+            {t('cli.updateFound').replace('{v}', cliLatestVersion || '')}
           </p>
         </div>
       )}
@@ -385,7 +387,9 @@ function CliDiagnostics() {
   const t = useT();
   const [candidates, setCandidates] = useState<CliCandidate[]>([]);
   const [pinnedPath, setPinnedPath] = useState<string | null>(null);
+  const [activePath, setActivePath] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [actionMsg, setActionMsg] = useState('');
 
   // Auto-scan on mount
@@ -393,12 +397,14 @@ function CliDiagnostics() {
     setScanning(true);
     setActionMsg('');
     try {
-      const [result, pinned] = await Promise.all([
+      const [result, pinned, current] = await Promise.all([
         bridge.diagnoseCli(),
         bridge.getPinnedCli(),
+        bridge.checkClaudeCli().catch(() => null),
       ]);
       setCandidates(result);
       setPinnedPath(pinned);
+      setActivePath(current?.path ?? null);
     } catch (e) {
       console.error('diagnose_cli failed:', e);
     } finally {
@@ -454,7 +460,60 @@ function CliDiagnostics() {
     }
   }, [t]);
 
-  const isActive = (path: string) => pinnedPath ? path === pinnedPath : candidates[0]?.path === path;
+  const currentPath = pinnedPath ?? activePath ?? candidates[0]?.path ?? null;
+  const isActive = (path: string) => path === currentPath;
+
+  // Keep the one in use plus the newest; the rest are cleanup candidates. The backend
+  // still vetoes anything that is not inside its own install directories.
+  const isNewer = (a: string, b: string | null) => {
+    const x = a.split(/[.\-+]/).map((n) => parseInt(n, 10) || 0);
+    const y = (b || '0').split(/[.\-+]/).map((n) => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const d = (x[i] || 0) - (y[i] || 0);
+      if (d !== 0) return d > 0;
+    }
+    return false;
+  };
+  const newest = candidates.reduce<CliCandidate | null>(
+    (acc, c) => (c.version && (!acc || isNewer(c.version, acc.version)) ? c : acc),
+    null,
+  );
+  const redundant = candidates.filter((c) => !isActive(c.path) && c.path !== newest?.path);
+  // cleanup_old_cli only removes files under this app's own install dirs; anything else
+  // comes back as "skipped", so don't promise to delete what it won't touch.
+  const cleanable = redundant.filter((c) => c.source === 'appLocal');
+  const manualOnly = redundant.filter((c) => c.source !== 'appLocal');
+  const fmtMB = (n: number) => (n >= 1048576 ? `${Math.round(n / 1048576)} MB` : `${Math.round(n / 1024)} KB`);
+  const totalBytes = candidates.reduce((s, c) => s + (c.sizeBytes || 0), 0);
+  const reclaimBytes = cleanable.reduce((s, c) => s + (c.sizeBytes || 0), 0);
+
+  const handleClean = useCallback(async () => {
+    const targets = cleanable.map((c) => c.path);
+    if (targets.length === 0) return;
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    const confirmed = await ask(
+      t('cli.cleanConfirm').replace('{n}', String(targets.length)).replace('{size}', fmtMB(reclaimBytes)),
+      { title: 'CLI', kind: 'warning' },
+    );
+    if (!confirmed) return;
+    setCleaning(true);
+    try {
+      const r = await bridge.cleanupOldCli(targets);
+      setActionMsg(
+        r.removed.length > 0
+          ? t('cli.cleanDone').replace('{n}', String(r.removed.length))
+            + (r.skipped.length > 0 ? t('cli.cleanSkipped').replace('{n}', String(r.skipped.length)) : '')
+          : t('cli.cleanNone'),
+      );
+      const [updated, pinned] = await Promise.all([bridge.diagnoseCli(), bridge.getPinnedCli()]);
+      setCandidates(updated);
+      setPinnedPath(pinned);
+    } catch (e) {
+      setActionMsg(String(e));
+    } finally {
+      setCleaning(false);
+    }
+  }, [cleanable, reclaimBytes, t]);
 
   return (
     <div className="space-y-3">
@@ -479,6 +538,48 @@ function CliDiagnostics() {
 
       {!scanning && candidates.length === 0 && (
         <p className="text-[13px] text-text-tertiary py-2">{t('cli.noCliFound')}</p>
+      )}
+
+      {!scanning && candidates.length > 0 && (
+        <div className={`py-2 px-3 rounded-lg border ${
+          redundant.length > 0 ? 'border-amber-500/25 bg-amber-500/5' : 'border-border-subtle'
+        }`}>
+          <p className="text-[13px] text-text-secondary">
+            {t('cli.summary')
+              .replace('{n}', String(candidates.length))
+              .replace('{size}', fmtMB(totalBytes))}
+          </p>
+          {cleanable.length > 0 && (
+            <div className="flex items-center justify-between gap-3 mt-1.5">
+              <p className="text-xs text-amber-500 leading-tight">
+                {t('cli.redundant')
+                  .replace('{n}', String(cleanable.length))
+                  .replace('{size}', fmtMB(reclaimBytes))}
+              </p>
+              <button
+                onClick={handleClean}
+                disabled={cleaning}
+                className="shrink-0 py-1 px-2.5 text-xs font-medium rounded-md
+                  bg-accent text-text-inverse hover:bg-accent-hover transition-smooth
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cleaning ? t('cli.cleaning') : t('cli.clean')}
+              </button>
+            </div>
+          )}
+          {manualOnly.length > 0 && (
+            <div className="mt-1.5 space-y-0.5">
+              <p className="text-xs text-text-tertiary leading-tight">
+                {t('cli.manualOnly').replace('{n}', String(manualOnly.length))}
+              </p>
+              {manualOnly.map((c) => (
+                <p key={c.path} className="text-[11px] text-text-tertiary truncate" title={c.path}>
+                  {c.path}{c.sizeBytes ? ` (${fmtMB(c.sizeBytes)})` : ''}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="space-y-2">
@@ -508,13 +609,26 @@ function CliDiagnostics() {
                   {c.isNative && (
                     <span className="text-[11px] text-text-tertiary">native</span>
                   )}
-                  {active && pinnedPath && (
-                    <span className="text-[11px] text-accent font-medium">★</span>
+                  {pinnedPath === c.path && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
+                      {t('cli.badgePinned')}
+                    </span>
+                  )}
+                  {newest?.path === c.path && !active && (
+                    <span className="text-[11px] text-green-500">{t('cli.badgeLatest')}</span>
+                  )}
+                  {cleanable.includes(c) && (
+                    <span className="text-[11px] text-amber-500">{t('cli.badgeRedundant')}</span>
                   )}
                 </div>
-                {active && (
-                  <span className="text-[11px] text-accent font-medium shrink-0">{t('cli.inUse')}</span>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {c.sizeBytes != null && (
+                    <span className="text-[11px] text-text-tertiary">{fmtMB(c.sizeBytes)}</span>
+                  )}
+                  {active && (
+                    <span className="text-[11px] text-accent font-medium">{t('cli.inUse')}</span>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-text-tertiary truncate mt-1" title={c.path}>
                 {c.path}

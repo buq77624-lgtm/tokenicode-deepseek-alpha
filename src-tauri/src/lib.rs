@@ -6171,6 +6171,7 @@ async fn diagnose_cli() -> Result<Vec<commands::cli_resolver::CliCandidate>, Str
     let enriched_path = build_enriched_path();
 
     for candidate in &mut candidates {
+        candidate.size_bytes = std::fs::metadata(&candidate.path).ok().map(|m| m.len());
         if !candidate.issues.is_empty() && candidate.version.is_none() {
             continue;
         }

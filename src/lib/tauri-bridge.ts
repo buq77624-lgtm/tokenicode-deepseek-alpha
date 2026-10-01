@@ -180,6 +180,7 @@ export interface CliCandidate {
   source: 'official' | 'system' | 'appLocal' | 'versionManager' | 'dynamic';
   isNative: boolean;
   version: string | null;
+  sizeBytes: number | null;
   issues: string[];
 }
 

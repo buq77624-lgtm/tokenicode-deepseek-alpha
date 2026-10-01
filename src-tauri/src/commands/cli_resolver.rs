@@ -51,6 +51,8 @@ pub struct CliCandidate {
     pub is_native: bool,
     /// Filled async by the diagnose Tauri command, not by scan_all().
     pub version: Option<String>,
+    /// File size, filled by diagnose so the UI can total up duplicate installs.
+    pub size_bytes: Option<u64>,
     /// Human-readable issues: "broken symlink", "shebang interpreter not found", etc.
     pub issues: Vec<String>,
 }
@@ -736,6 +738,7 @@ pub fn scan_all() -> Vec<CliCandidate> {
                 source: td.source,
                 is_native: native,
                 version: None,
+                size_bytes: None,
                 issues,
             });
         }
