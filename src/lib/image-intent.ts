@@ -29,15 +29,21 @@ export function detectImageIntent(text: string): ImageIntentResult {
     return { isImageRequest: true, prompt: cmdMatch[1].trim(), originalText: text };
   }
 
+  // 技术与编程关键词全局过滤（避免“画流程图”、“帮我生成一个函数”、“生成测试用例”被误判为生图）
+  const isTechnical = /(代码|函数|组件|脚本|文件|文档|网页|页面|表格|流程图|架构图|思维导图|时序图|类图|UML|接口|API|PRD|项目|测试|用例|方案)/i.test(trimmed);
+  if (isTechnical) {
+    return { isImageRequest: false, prompt: '', originalText: text };
+  }
+
   // 2. 中文自然语言意图识别规则
   const zhPatterns = [
     // 模式 A：帮我/请/麻烦 + 生成/绘制/画/制作 + (数量词) + 提示词 + 的 + 图片/壁纸/插画等
     // 例如："帮我生成一本书的图片", "请帮我画一张猫咪睡觉的插画", "制作一张科幻壁纸"
     /^(?:帮我|请帮我|麻烦|请|给我)?(?:生成|绘制|画|制作|渲染|出)(?:一张|一个|幅|几张|下)?(?:关于|包含)?(.+?)(?:的)?(?:图片|图画|插画|壁纸|海报|插图|画卷|画作|照片|图像|图)(?:吧|呀|吗|呢|！|!|。)?$/i,
 
-    // 模式 B：帮我/请/麻烦 + 画/绘制/生成 + 提示词
-    // 例如："帮我画一只可爱的小狗", "画一个太空人", "请画一幅日落海滩"
-    /^(?:帮我|请帮我|麻烦|请)?(?:画|绘制)(?:一个|一只|一位|一部|一辆|一栋|一朵|一幅|一张)?(.+?)(?:吧|呀|吗|呢|！|!|。)?$/i,
+    // 模式 B：帮我/请/麻烦/给我 + 画/绘制/生成/制作/渲染/出 + (量词) + 提示词
+    // 例如："帮我生成一只阿米娅", "帮我画一只可爱的小狗", "画一个太空人", "请画一幅日落海滩", "生成一只猫咪"
+    /^(?:帮我|请帮我|麻烦|请|给我)?(?:画|绘制|生成|制作|渲染|出)(?:一个|一只|一位|一部|一辆|一栋|一朵|一幅|一张|条|匹|尊|台)?(.+?)(?:吧|呀|吗|呢|！|!|。)?$/i,
 
     // 模式 C：生成/制作 + (数量词) + 提示词 + 后缀
     // 例如："生成一张可爱的卡通小猪图片", "生成一幅星空画"
@@ -48,9 +54,7 @@ export function detectImageIntent(text: string): ImageIntentResult {
     const match = trimmed.match(pattern);
     if (match && match[1]) {
       const extracted = match[1].trim();
-      // 过滤非生图的误判词（如“帮我写代码”、“画流程图”、“画架构图”）
-      const isBlacklisted = /^(代码|函数|文件|文档|脚本|网页|表格|流程图|架构图|思维导图|时序图|UML)$/i.test(extracted);
-      if (extracted.length >= 1 && !isBlacklisted) {
+      if (extracted.length >= 1) {
         return { isImageRequest: true, prompt: extracted, originalText: text };
       }
     }
