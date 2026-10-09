@@ -44,7 +44,6 @@ export function Sidebar() {
   const toggleSettings = useSettingsStore((s) => s.toggleSettings);
   const setSecondaryTab = useSettingsStore((s) => s.setSecondaryTab);
   const secondaryPanelOpen = useSettingsStore((s) => s.secondaryPanelOpen);
-  const toggleSecondaryPanel = useSettingsStore((s) => s.toggleSecondaryPanel);
   const secondaryPanelTab = useSettingsStore((s) => s.secondaryPanelTab);
   const updateAvailable = useSettingsStore((s) => s.updateAvailable);
   const cliUpdateAvailable = useSettingsStore((s) => s.cliUpdateAvailable);
@@ -249,13 +248,14 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => {
-            if (secondaryPanelTab === 'images' && secondaryPanelOpen) {
-              toggleSecondaryPanel();
+            const state = useSettingsStore.getState();
+            if (state.secondaryPanelTab === 'images' && state.secondaryPanelOpen) {
+              state.toggleSecondaryPanel();
             } else {
-              setSecondaryTab('images');
-              if (!secondaryPanelOpen) {
-                toggleSecondaryPanel();
+              if (state.secondaryPanelWidth < 260) {
+                state.setSecondaryPanelWidth(340);
               }
+              state.setSecondaryTab('images');
             }
           }}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-smooth ${

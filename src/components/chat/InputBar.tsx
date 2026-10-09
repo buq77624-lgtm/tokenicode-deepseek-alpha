@@ -573,10 +573,11 @@ export function InputBar() {
       case 'image':
       case 'draw': {
         const promptText = (args || '').trim();
-        useSettingsStore.getState().setSecondaryTab('images');
-        if (!useSettingsStore.getState().secondaryPanelOpen) {
-          useSettingsStore.getState().toggleSecondaryPanel();
+        const settings = useSettingsStore.getState();
+        if (settings.secondaryPanelWidth < 260) {
+          settings.setSecondaryPanelWidth(340);
         }
+        settings.setSecondaryTab('images');
         if (promptText) {
           useImageStore.getState().setPrompt(promptText);
         }
@@ -846,10 +847,11 @@ export function InputBar() {
     if (/^\/(image|draw)($|\s+)/i.test(text)) {
       const promptText = text.replace(/^\/(image|draw)\s*/i, '').trim();
       setInputSync('');
-      useSettingsStore.getState().setSecondaryTab('images');
-      if (!useSettingsStore.getState().secondaryPanelOpen) {
-        useSettingsStore.getState().toggleSecondaryPanel();
+      const settings = useSettingsStore.getState();
+      if (settings.secondaryPanelWidth < 260) {
+        settings.setSecondaryPanelWidth(340);
       }
+      settings.setSecondaryTab('images');
       if (promptText) {
         useImageStore.getState().setPrompt(promptText);
       }
