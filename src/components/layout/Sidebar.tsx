@@ -11,7 +11,6 @@ import { displayProviderModelName } from '../../lib/deepseek-models';
 import { resolveModelForProvider } from '../../lib/api-provider';
 import { ProfileStatsModal } from '../profile/ProfileStatsModal';
 import { AvatarCropModal } from '../settings/AvatarCropModal';
-import { SidebarImageMode } from './SidebarImageMode';
 
 /** Map raw model ID to friendly display name */
 function getModelDisplayName(modelId: string): string {
@@ -44,6 +43,9 @@ export function Sidebar() {
   const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
   const toggleSettings = useSettingsStore((s) => s.toggleSettings);
   const setSecondaryTab = useSettingsStore((s) => s.setSecondaryTab);
+  const secondaryPanelOpen = useSettingsStore((s) => s.secondaryPanelOpen);
+  const toggleSecondaryPanel = useSettingsStore((s) => s.toggleSecondaryPanel);
+  const secondaryPanelTab = useSettingsStore((s) => s.secondaryPanelTab);
   const updateAvailable = useSettingsStore((s) => s.updateAvailable);
   const cliUpdateAvailable = useSettingsStore((s) => s.cliUpdateAvailable);
   const sessionMeta = useActiveTab((t) => t.sessionMeta);
@@ -245,7 +247,39 @@ export function Sidebar() {
           </svg>
           {t('panel.skills')}
         </button>
-        <SidebarImageMode />
+        <button
+          onClick={() => {
+            if (secondaryPanelTab === 'images' && secondaryPanelOpen) {
+              toggleSecondaryPanel();
+            } else {
+              setSecondaryTab('images');
+              if (!secondaryPanelOpen) {
+                toggleSecondaryPanel();
+              }
+            }
+          }}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-smooth ${
+            secondaryPanelOpen && secondaryPanelTab === 'images'
+              ? 'bg-accent/15 text-accent font-medium'
+              : 'text-text-muted hover:bg-bg-secondary hover:text-text-primary'
+          }`}
+          title="AI 生图工作台"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="2" width="12" height="12" rx="2" />
+            <circle cx="5.5" cy="5.5" r="1.5" />
+            <path d="M14 10l-4-4-6 6" />
+          </svg>
+          {t('panel.images')}
+        </button>
         <button onClick={toggleSettings}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl
             text-sm text-text-muted hover:bg-bg-secondary hover:text-text-primary
