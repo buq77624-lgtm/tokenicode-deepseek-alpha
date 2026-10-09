@@ -30,7 +30,6 @@ import { buildSkillPrompt, resolveSkillInvocation } from '../../lib/skill-invoca
 import { stripAnsi } from '../../lib/strip-ansi';
 import { usePlanPanelStore } from './ChatPanel';
 import { useImageStore } from '../../stores/imageStore';
-import { detectImageIntent } from '../../lib/image-intent';
 import { PlanReviewCard } from './PlanReviewCard';
 import { PermissionCard } from './PermissionCard';
 import { QuestionCard } from './QuestionCard';
@@ -230,7 +229,7 @@ export function InputBar() {
   const setIsImageMode = useImageStore((s) => s.setIsImageMode);
 
   // 对话流内原生 AI 生图核心调用
-  const triggerChatImageGeneration = useCallback(async (promptText: string, userDisplayText?: string) => {
+  const triggerChatImageGeneration = useCallback(async (promptText: string) => {
     let tabId = useSessionStore.getState().selectedSessionId;
     if (!tabId) {
       const wd = useSettingsStore.getState().workingDirectory;
@@ -257,12 +256,12 @@ export function InputBar() {
     const genMsgId = generateMessageId();
     const startTime = Date.now();
 
-    // 1. 插入用户发送的消息气泡（如果传了展示文本，如“帮我生成一本书的图片”，则显示原话）
+    // 1. 插入用户发送的消息气泡
     useChatStore.getState().addMessage(tabId, {
       id: userMsgId,
       role: 'user',
       type: 'text',
-      content: userDisplayText?.trim() || cleanPrompt,
+      content: cleanPrompt,
       timestamp: startTime,
     });
 
@@ -929,31 +928,21 @@ export function InputBar() {
 
     if (!text && selectedSkills.length === 0) return;
 
-    // 对话流内原生 AI 生图拦截：
-    // 1. 如果处于生图模式，所有发送内容直接作为提示词生成图片
+    // 对话流内原生 AI 生图拦截：如果在生图模式或以 /image /draw 开头，直接在当前对话中生成
     if (isImageMode && text) {
       setInputSync('');
-      triggerChatImageGeneration(text, text);
+      triggerChatImageGeneration(text);
       return;
     }
 
-    // 2. 如果以 /image 或 /draw 开头
     if (/^\/(image|draw)($|\s+)/i.test(text)) {
       const promptText = text.replace(/^\/(image|draw)\s*/i, '').trim();
       setInputSync('');
       if (promptText) {
-        triggerChatImageGeneration(promptText, text);
+        triggerChatImageGeneration(promptText);
       } else {
         setIsImageMode(true);
       }
-      return;
-    }
-
-    // 3. 自然语言智能意图识别：例如 "帮我生成一本书的图片"、"画一只在草地上奔跑的金毛犬" 等
-    const imageIntent = detectImageIntent(text);
-    if (imageIntent.isImageRequest) {
-      setInputSync('');
-      triggerChatImageGeneration(imageIntent.prompt, text);
       return;
     }
 
