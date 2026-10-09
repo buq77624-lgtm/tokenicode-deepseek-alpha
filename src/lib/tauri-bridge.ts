@@ -293,6 +293,41 @@ export interface ClaudeSyncResult {
   message: string;
 }
 
+export interface GenerateImageParams {
+  base_url: string;
+  api_key: string;
+  model: string;
+  prompt: string;
+  size?: string;
+  quality?: string;
+  style?: string;
+  n?: number;
+  response_format?: string;
+  proxy_url?: string;
+  cwd?: string;
+}
+
+export interface GeneratedImageItem {
+  file_path: string;
+  data_url: string;
+  revised_prompt?: string;
+}
+
+export interface GenerateImageResult {
+  success: boolean;
+  images: GeneratedImageItem[];
+  model: string;
+  prompt: string;
+  created_at: number;
+}
+
+export interface TestImageConnectionParams {
+  base_url: string;
+  api_key: string;
+  model: string;
+  proxy_url?: string;
+}
+
 export interface UnifiedCommand {
   name: string;
   description: string;
@@ -639,6 +674,14 @@ export const bridge = {
 
   testProviderConnection: (baseUrl: string, apiFormat: string, apiKey: string, model: string, proxyUrl?: string) =>
     invoke<ConnectionTestResult>('test_provider_connection', { baseUrl, apiFormat, apiKey, model, proxyUrl: proxyUrl || null }),
+
+  // --- AI Image Generation ---
+
+  generateImage: (params: GenerateImageParams) =>
+    invoke<GenerateImageResult>('generate_image', { params }),
+
+  testImageConnection: (params: TestImageConnectionParams) =>
+    invoke<ConnectionTestResult>('test_image_connection', { params }),
 
   /** Read ~/.claude/settings.json so the UI can show who currently owns it. */
   readClaudeSettings: (providerId?: string | null) =>

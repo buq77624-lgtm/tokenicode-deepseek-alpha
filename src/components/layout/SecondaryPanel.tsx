@@ -3,11 +3,13 @@ import { FileExplorer } from '../files/FileExplorer';
 import { SkillsPanel } from '../skills/SkillsPanel';
 import { PluginsPanel } from '../plugins/PluginsPanel';
 import { PreviewPanel } from '../preview/PreviewPanel';
+import { ImageWorkbench } from '../images/ImageWorkbench';
 import { useT } from '../../lib/i18n';
 
 const tabs: { id: SecondaryPanelTab; labelKey: string; icon: string }[] = [
   { id: 'files', labelKey: 'panel.files', icon: 'M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3z' },
   { id: 'preview', labelKey: 'panel.preview', icon: 'M2 4h12v8H2zM5 14h6' },
+  { id: 'images', labelKey: 'panel.images', icon: 'M2 2h12v12H2zM5.5 6a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM14 11l-4-4-6 6' },
   { id: 'skills', labelKey: 'panel.skills', icon: 'M8 1L1 4.5l7 3.5 7-3.5L8 1zM1 11.5l7 3.5 7-3.5M1 8l7 3.5L15 8' },
   { id: 'plugins', labelKey: 'panel.plugins', icon: 'M6 2v4M10 2v4M4 6h8v3a4 4 0 01-4 4h0a4 4 0 01-4-4V6zM8 13v2' },
 ];
@@ -60,6 +62,7 @@ export function SecondaryPanel() {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'files' && <FileExplorer />}
         {activeTab === 'preview' && <PreviewPanel />}
+        {activeTab === 'images' && <ImageWorkbench />}
         {activeTab === 'skills' && <SkillsPanel />}
         {activeTab === 'plugins' && <PluginsPanel />}
       </div>

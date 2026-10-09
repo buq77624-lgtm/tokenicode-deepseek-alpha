@@ -39,10 +39,24 @@ export interface PermissionRequestData {
   toolUseId?: string;
 }
 
+export interface ImageGenerationMessageData {
+  prompt: string;
+  revisedPrompt?: string;
+  model: string;
+  endpointName?: string;
+  status: 'generating' | 'success' | 'error';
+  aspectRatio?: string;
+  filePath?: string;
+  dataUrl?: string;
+  error?: string;
+  startedAt: number;
+  durationMs?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  type: 'text' | 'tool_use' | 'thinking' | 'tool_result' | 'permission' | 'plan' | 'plan_review' | 'question' | 'todo';
+  type: 'text' | 'tool_use' | 'thinking' | 'tool_result' | 'permission' | 'plan' | 'plan_review' | 'question' | 'todo' | 'image_generation';
   content: string;
   toolName?: string;
   toolInput?: any;
@@ -50,6 +64,8 @@ export interface ChatMessage {
   toolResultContent?: string;      // tool result content merged from tool_result stream events
   isPartial?: boolean;
   timestamp: number;
+  // In-chat image generation data
+  imageGenerationData?: ImageGenerationMessageData;
   // Interactive message fields
   permissionTool?: string;         // tool requesting permission
   permissionDescription?: string;  // what the tool wants to do

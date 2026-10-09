@@ -11,6 +11,7 @@ import { CommandProcessingCard } from './CommandProcessingCard';
 import { PlanReviewCard } from './PlanReviewCard';
 import { PermissionCard } from './PermissionCard';
 import { QuestionCard } from './QuestionCard';
+import { ChatImageCard } from './ChatImageCard';
 import { AiAvatar } from '../shared/AiAvatar';
 import { UserAvatar } from '../shared/UserAvatar';
 
@@ -45,6 +46,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isFirstInGro
   if (message.type === 'permission' && !message.resolved && message.interactionState !== 'resolved') return null;
   if (message.type === 'permission') return <PermissionCard message={message} />;
   if (message.type === 'plan') return <PlanMsg message={message} />;
+  if (message.type === 'image_generation') return <ChatImageCard message={message} />;
   return <AssistantMsg message={message} isFirstInGroup={isFirstInGroup} />;
 });
 

@@ -9,8 +9,9 @@ import { ProviderTab } from './ProviderTab';
 import { CliTab } from './CliTab';
 import { McpTab } from './McpTab';
 import { LocalModelsTab } from './LocalModelsTab';
+import { ImagesTab } from './ImagesTab';
 
-type SettingsTab = 'general' | 'provider' | 'cli' | 'localModels' | 'mcp';
+type SettingsTab = 'general' | 'provider' | 'images' | 'cli' | 'localModels' | 'mcp';
 
 const TAB_ICONS: Record<SettingsTab, React.ReactNode> = {
   general: (
@@ -24,6 +25,13 @@ const TAB_ICONS: Record<SettingsTab, React.ReactNode> = {
       <rect x="3" y="7" width="10" height="7" rx="1.5" />
       <path d="M5 7V5a3 3 0 016 0v2" />
       <circle cx="8" cy="11" r="1" fill="currentColor" />
+    </svg>
+  ),
+  images: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <circle cx="5.5" cy="5.5" r="1.5" />
+      <path d="M14 10l-4-4-6 6" />
     </svg>
   ),
   cli: (
@@ -52,6 +60,7 @@ const TAB_ICONS: Record<SettingsTab, React.ReactNode> = {
 const TAB_ITEMS: { id: SettingsTab; labelKey: string }[] = [
   { id: 'general', labelKey: 'settings.tab.general' },
   { id: 'provider', labelKey: 'settings.tab.provider' },
+  { id: 'images', labelKey: 'AI 生图' },
   { id: 'cli', labelKey: 'settings.tab.cli' },
   { id: 'localModels', labelKey: '本地模型' },
   { id: 'mcp', labelKey: 'settings.tab.mcp' },
@@ -62,19 +71,42 @@ export function SettingsPanel() {
   const toggleSettings = useSettingsStore((s) => s.toggleSettings);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
-  // Close on Escape
+  // Close on Escape (guard against IME cancel and active input fields)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') toggleSettings();
+      if (e.key === 'Escape') {
+        if (e.isComposing) return;
+        const active = document.activeElement;
+        if (active) {
+          const tag = active.tagName.toLowerCase();
+          if (tag === 'input' || tag === 'textarea' || tag === 'select' || (active as HTMLElement).isContentEditable) {
+            // 正在输入时按 Esc 仅让输入框失焦，不退出设置面板
+            (active as HTMLElement).blur();
+            return;
+          }
+        }
+        toggleSettings();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [toggleSettings]);
 
+  // 防止在输入框内选中文本拖拽到遮罩松开鼠标时意外关闭弹窗
+  const [backdropMouseDown, setBackdropMouseDown] = useState(false);
+
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) toggleSettings(); }}
+      onMouseDown={(e) => {
+        setBackdropMouseDown(e.target === e.currentTarget);
+      }}
+      onClick={(e) => {
+        if (backdropMouseDown && e.target === e.currentTarget) {
+          toggleSettings();
+        }
+        setBackdropMouseDown(false);
+      }}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
@@ -128,6 +160,7 @@ export function SettingsPanel() {
           <div className="flex-1 overflow-y-auto px-8 py-6">
             {activeTab === 'general' && <GeneralTab />}
             {activeTab === 'provider' && <ProviderTab />}
+            {activeTab === 'images' && <ImagesTab />}
             {activeTab === 'cli' && <CliTab />}
             {activeTab === 'localModels' && <LocalModelsTab />}
             {activeTab === 'mcp' && <McpTab />}

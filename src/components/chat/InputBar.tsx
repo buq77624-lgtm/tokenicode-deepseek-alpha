@@ -29,6 +29,8 @@ import { displayProviderModelName } from '../../lib/deepseek-models';
 import { buildSkillPrompt, resolveSkillInvocation } from '../../lib/skill-invocation';
 import { stripAnsi } from '../../lib/strip-ansi';
 import { usePlanPanelStore } from './ChatPanel';
+import { useImageStore } from '../../stores/imageStore';
+import { ImageChatModelSelector } from './ImageChatModelSelector';
 import { PlanReviewCard } from './PlanReviewCard';
 import { PermissionCard } from './PermissionCard';
 import { QuestionCard } from './QuestionCard';
@@ -224,6 +226,92 @@ export function InputBar() {
   const selectedModel = useSettingsStore((s) => s.selectedModel);
   const sessionMode = useSettingsStore((s) => s.sessionMode);
   const ctrlEnterToSend = useSettingsStore((s) => s.ctrlEnterToSend);
+  const [isImageMode, setIsImageMode] = useState(false);
+
+  // 对话流内原生 AI 生图核心调用
+  const triggerChatImageGeneration = useCallback(async (promptText: string) => {
+    let tabId = useSessionStore.getState().selectedSessionId;
+    if (!tabId) {
+      const wd = useSettingsStore.getState().workingDirectory;
+      if (!wd) return;
+      tabId = `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      useChatStore.getState().ensureTab(tabId);
+      useChatStore.getState().resetTab(tabId);
+      useSessionStore.getState().addDraftSession(tabId, wd);
+    }
+    useChatStore.getState().ensureTab(tabId);
+
+    const cleanPrompt = promptText.trim();
+    if (!cleanPrompt) return;
+
+    const imgStore = useImageStore.getState();
+    const activeConfig = imgStore.getActiveConfig();
+
+    if (!activeConfig.apiKey?.trim()) {
+      imgStore.setConfigModalOpen(true);
+      return;
+    }
+
+    const userMsgId = generateMessageId();
+    const genMsgId = generateMessageId();
+    const startTime = Date.now();
+
+    // 1. 插入用户发送的提示词气泡
+    useChatStore.getState().addMessage(tabId, {
+      id: userMsgId,
+      role: 'user',
+      type: 'text',
+      content: cleanPrompt,
+      timestamp: startTime,
+    });
+
+    // 2. 插入生图卡片气泡（生成中）
+    useChatStore.getState().addMessage(tabId, {
+      id: genMsgId,
+      role: 'assistant',
+      type: 'image_generation',
+      content: '',
+      timestamp: startTime + 1,
+      imageGenerationData: {
+        prompt: cleanPrompt,
+        model: activeConfig.model,
+        endpointName: activeConfig.name,
+        status: 'generating',
+        startedAt: startTime,
+      },
+    });
+
+    try {
+      const result = await imgStore.generateDirectly({
+        prompt: cleanPrompt,
+        model: activeConfig.model,
+      });
+
+      useChatStore.getState().updateMessage(tabId, genMsgId, {
+        imageGenerationData: {
+          prompt: cleanPrompt,
+          model: result.model,
+          endpointName: activeConfig.name,
+          status: 'success',
+          filePath: result.filePath,
+          dataUrl: result.dataUrl,
+          startedAt: startTime,
+          durationMs: Date.now() - startTime,
+        },
+      });
+    } catch (err: any) {
+      useChatStore.getState().updateMessage(tabId, genMsgId, {
+        imageGenerationData: {
+          prompt: cleanPrompt,
+          model: activeConfig.model,
+          endpointName: activeConfig.name,
+          status: 'error',
+          error: err?.message || String(err),
+          startedAt: startTime,
+        },
+      });
+    }
+  }, []);
 
   const handlePlanApprove = useCallback(async () => {
     const tabId = useSessionStore.getState().selectedSessionId;
@@ -568,6 +656,22 @@ export function InputBar() {
         feedback('mode', t('cmd.switchedToBypass'), { mode: 'bypass', icon: '🔓' });
         return;
 
+      // --- Image Generation in Chat ---
+      case 'image':
+      case 'draw': {
+        const promptText = (args || '').trim();
+        if (promptText) {
+          triggerChatImageGeneration(promptText);
+        } else {
+          setIsImageMode(true);
+          feedback('info', '已开启 AI 生图模式，请在输入框中输入画面描述 (Prompt)，按 Enter 将直接在对话中生成图片。', {
+            command: '/image',
+            icon: '🎨',
+          });
+        }
+        return;
+      }
+
       // --- Session management ---
       case 'clear':
         if (tabId) useChatStore.getState().resetTab(tabId);
@@ -823,6 +927,24 @@ export function InputBar() {
     }
 
     if (!text && selectedSkills.length === 0) return;
+
+    // 对话流内原生 AI 生图拦截：如果在生图模式或以 /image /draw 开头，直接在当前对话中生成
+    if (isImageMode && text) {
+      setInputSync('');
+      triggerChatImageGeneration(text);
+      return;
+    }
+
+    if (/^\/(image|draw)($|\s+)/i.test(text)) {
+      const promptText = text.replace(/^\/(image|draw)\s*/i, '').trim();
+      setInputSync('');
+      if (promptText) {
+        triggerChatImageGeneration(promptText);
+      } else {
+        setIsImageMode(true);
+      }
+      return;
+    }
 
     // Intercept immediate (built-in) commands even when submitted directly
     // (e.g. user types "/help" and presses Enter without using the popover)
@@ -1682,11 +1804,13 @@ export function InputBar() {
               }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={activePrefixes.length > 0
-                ? t('input.prefixPlaceholder')
-                : isRunning
-                  ? t('input.followUp')
-                  : t('input.placeholder')}
+              placeholder={isImageMode
+                ? '🎨 AI 原生生图模式 — 请输入画面描述 (Prompt)，按 Enter 直接在对话中生成图片...'
+                : activePrefixes.length > 0
+                  ? t('input.prefixPlaceholder')
+                  : isRunning
+                    ? t('input.followUp')
+                    : t('input.placeholder')}
               className="flex-1 bg-transparent text-sm text-text-primary
                 placeholder:text-text-tertiary resize-none outline-none
                 leading-normal overflow-y-auto min-w-0 py-0.5"
@@ -1834,6 +1958,13 @@ export function InputBar() {
           </button>
 
           <ModeSelector />
+
+          {/* AI 原生生图模式与多模型选择 */}
+          <ImageChatModelSelector
+            isImageMode={isImageMode}
+            onToggleImageMode={() => setIsImageMode(!isImageMode)}
+            disabled={isRunning}
+          />
 
           {/* Think toggle */}
           <ThinkLevelSelector disabled={isRunning} />

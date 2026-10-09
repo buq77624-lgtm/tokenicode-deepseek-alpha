@@ -1,7 +1,7 @@
 mod commands;
 mod protocol;
 
-use commands::{ManagedProcess, ProcessManager, SessionInfo, StartSessionParams, StdinManager};
+use commands::{generate_image, test_image_connection, ManagedProcess, ProcessManager, SessionInfo, StartSessionParams, StdinManager};
 // protocol module kept for ControlRequest (send_control_request) and tests
 use futures_util::StreamExt;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -462,7 +462,7 @@ fn resolve_proxy_url() -> Option<String> {
 }
 
 /// Check if a proxy endpoint is actually reachable (TCP connect with 1s timeout).
-async fn is_proxy_reachable(proxy_url: &str) -> bool {
+pub(crate) async fn is_proxy_reachable(proxy_url: &str) -> bool {
     // Parse host:port from proxy URL like "http://127.0.0.1:7890"
     let addr = proxy_url
         .trim_start_matches("http://")
@@ -486,7 +486,7 @@ async fn is_proxy_reachable(proxy_url: &str) -> bool {
 /// Logic: if a proxy URL is found in env/login-shell, probe the proxy port first.
 /// If reachable → use proxy; if not (VPN off) → bypass and connect directly.
 /// This makes the app "just work" regardless of VPN state.
-async fn build_smart_http_client(
+pub(crate) async fn build_smart_http_client(
     connect_timeout: std::time::Duration,
     request_timeout: std::time::Duration,
 ) -> reqwest::Client {
@@ -1381,16 +1381,16 @@ fn clear_claude_settings() -> Result<ClaudeSyncResult, String> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StepResult {
-    ok: bool,
-    message: String,
+pub(crate) struct StepResult {
+    pub(crate) ok: bool,
+    pub(crate) message: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ConnectionTestResult {
-    connectivity: StepResult,
-    auth: StepResult,
-    model: StepResult,
+pub(crate) struct ConnectionTestResult {
+    pub(crate) connectivity: StepResult,
+    pub(crate) auth: StepResult,
+    pub(crate) model: StepResult,
 }
 
 fn provider_messages_endpoint(base_url: &str, api_format: &str) -> String {
@@ -5495,7 +5495,7 @@ async fn list_all_commands(cwd: Option<String>, additional_dirs: Option<Vec<Stri
 
     // 1. Built-in commands: (name, description, has_args, execution)
     // execution: "ui" = handled in frontend, "cli" = run as separate CLI process, "session" = needs active CLI session
-    let builtins: [(&str, &str, bool, &str); 24] = [
+    let builtins: [(&str, &str, bool, &str); 25] = [
         ("/ask", "Ask a question without making changes", false, "ui"),
         ("/bug", "Report a bug with Claude Code", false, "ui"),
         (
@@ -5506,6 +5506,7 @@ async fn list_all_commands(cwd: Option<String>, additional_dirs: Option<Vec<Stri
         ),
         ("/clear", "Clear conversation history", false, "ui"),
         ("/code", "Switch to code mode (default)", false, "ui"),
+        ("/image", "使用 AI 生成图像 (如 /image 未来赛博朋克猫咪)", true, "ui"),
         (
             "/compact",
             "Compact conversation to reduce context",
@@ -8605,6 +8606,8 @@ pub fn run() {
             sync_claude_settings,
             clear_claude_settings,
             test_provider_connection,
+            generate_image,
+            test_image_connection,
             respond_permission,
             send_control_request,
         ])
