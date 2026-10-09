@@ -49,8 +49,11 @@ interface ImageState {
   currentImage: GeneratedImage | null;
   history: GeneratedImage[];
   isConfigModalOpen: boolean;
+  isImageMode: boolean;
 
   // Actions
+  setIsImageMode: (enabled: boolean) => void;
+  toggleImageMode: () => void;
   setPrompt: (prompt: string) => void;
   setAspectRatio: (ratio: ImageAspectRatio) => void;
   setQuality: (quality: ImageQuality) => void;
@@ -96,6 +99,10 @@ export const useImageStore = create<ImageState>()(
       currentImage: null,
       history: [],
       isConfigModalOpen: false,
+      isImageMode: false,
+
+      setIsImageMode: (isImageMode) => set({ isImageMode }),
+      toggleImageMode: () => set((s) => ({ isImageMode: !s.isImageMode })),
 
       setPrompt: (prompt) => set({ prompt }),
       setAspectRatio: (aspectRatio) => set({ aspectRatio }),

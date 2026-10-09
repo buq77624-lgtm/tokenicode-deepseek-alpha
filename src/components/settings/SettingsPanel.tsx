@@ -69,7 +69,8 @@ const TAB_ITEMS: { id: SettingsTab; labelKey: string }[] = [
 export function SettingsPanel() {
   const t = useT();
   const toggleSettings = useSettingsStore((s) => s.toggleSettings);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const activeTab = useSettingsStore((s) => s.activeSettingsTab);
+  const setActiveTab = useSettingsStore((s) => s.setActiveSettingsTab);
 
   // Close on Escape (guard against IME cancel and active input fields)
   useEffect(() => {

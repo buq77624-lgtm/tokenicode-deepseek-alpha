@@ -11,6 +11,7 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useCommandStore } from '../stores/commandStore';
 import { useAgentStore, resolveAgentId, getAgentDepth } from '../stores/agentStore';
 import { useFileStore } from '../stores/fileStore';
+import { useImageStore } from '../stores/imageStore';
 import { bridge, onClaudeStream, onClaudeStderr } from '../lib/tauri-bridge';
 import { envFingerprint, resolveModelForProvider, resolveThinkingLevelForProvider } from '../lib/api-provider';
 import { useProviderStore } from '../stores/providerStore';
@@ -1423,6 +1424,63 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
                   });
                   setActivityStatus({ phase: 'awaiting' });
                 }
+              }
+            } else if (block.name === 'generate_image' || block.name === 'generateImage' || block.name === 'image_generation') {
+              // 原生 AI 生图工具调用拦截并渲染卡片
+              const prompt = (block.input?.prompt || block.input?.description || '').trim();
+              const model = block.input?.model;
+              const aspectRatio = block.input?.aspectRatio || block.input?.aspect_ratio;
+              const imageMsgId = block.id || generateMessageId();
+              const startTime = Date.now();
+              const imgStore = useImageStore.getState();
+              const activeConfig = imgStore.getActiveConfig();
+
+              addMessage({
+                id: imageMsgId,
+                role: 'assistant',
+                type: 'image_generation',
+                content: '',
+                timestamp: startTime,
+                subAgentDepth: agentDepth,
+                imageGenerationData: {
+                  prompt,
+                  model: model || activeConfig.model,
+                  endpointName: activeConfig.name,
+                  status: 'generating',
+                  startedAt: startTime,
+                },
+              });
+
+              if (prompt) {
+                imgStore.generateDirectly({
+                  prompt,
+                  model: model || activeConfig.model,
+                  aspectRatio,
+                }).then((res) => {
+                  useChatStore.getState().updateMessage(tabId, imageMsgId, {
+                    imageGenerationData: {
+                      prompt,
+                      model: res.model,
+                      endpointName: activeConfig.name,
+                      status: 'success',
+                      filePath: res.filePath,
+                      dataUrl: res.dataUrl,
+                      startedAt: startTime,
+                      durationMs: Date.now() - startTime,
+                    },
+                  });
+                }).catch((err: any) => {
+                  useChatStore.getState().updateMessage(tabId, imageMsgId, {
+                    imageGenerationData: {
+                      prompt,
+                      model: model || activeConfig.model,
+                      endpointName: activeConfig.name,
+                      status: 'error',
+                      error: err?.message || String(err),
+                      startedAt: startTime,
+                    },
+                  });
+                });
               }
             } else {
               addMessage({

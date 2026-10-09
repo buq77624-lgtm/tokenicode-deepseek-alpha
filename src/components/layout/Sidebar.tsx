@@ -11,6 +11,7 @@ import { displayProviderModelName } from '../../lib/deepseek-models';
 import { resolveModelForProvider } from '../../lib/api-provider';
 import { ProfileStatsModal } from '../profile/ProfileStatsModal';
 import { AvatarCropModal } from '../settings/AvatarCropModal';
+import { SidebarImageMode } from './SidebarImageMode';
 
 /** Map raw model ID to friendly display name */
 function getModelDisplayName(modelId: string): string {
@@ -244,6 +245,7 @@ export function Sidebar() {
           </svg>
           {t('panel.skills')}
         </button>
+        <SidebarImageMode />
         <button onClick={toggleSettings}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl
             text-sm text-text-muted hover:bg-bg-secondary hover:text-text-primary

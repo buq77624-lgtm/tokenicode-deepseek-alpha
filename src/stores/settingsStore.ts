@@ -18,6 +18,7 @@ export type Theme = 'light' | 'dark' | 'system';
 export type ColorTheme = 'black' | 'blue' | 'orange' | 'green';
 export type BackgroundTheme = 'garden' | 'sakura' | 'lake' | 'dusk' | 'ink' | 'vscode' | 'minimal' | 'claude';
 export type SecondaryPanelTab = 'files' | 'preview' | 'skills' | 'plugins' | 'images';
+export type SettingsTab = 'general' | 'provider' | 'images' | 'cli' | 'localModels' | 'mcp';
 export type ModelId = 'claude-opus-4-6' | 'claude-opus-4-6-1m' | 'claude-sonnet-4-6' | 'claude-haiku-4-5-20251001';
 export type SessionMode = 'code' | 'ask' | 'plan' | 'bypass';
 export type FontFamily = 'system' | 'microsoft' | 'sourceHan' | 'lxgw' | 'mono';
@@ -77,6 +78,7 @@ interface SettingsState {
   secondaryPanelTab: SecondaryPanelTab;
   secondaryPanelWidth: number;
   settingsOpen: boolean;
+  activeSettingsTab: SettingsTab;
   workingDirectory: string;
   selectedModel: string;
   sessionMode: SessionMode;
@@ -159,6 +161,8 @@ interface SettingsState {
   setSecondaryTab: (tab: SecondaryPanelTab) => void;
   setSecondaryPanelWidth: (width: number) => void;
   toggleSettings: () => void;
+  openSettingsTab: (tab: SettingsTab) => void;
+  setActiveSettingsTab: (tab: SettingsTab) => void;
   setWorkingDirectory: (dir: string) => void;
   setSelectedModel: (model: string) => void;
   setSessionMode: (mode: SessionMode) => void;
@@ -221,6 +225,7 @@ export const useSettingsStore = create<SettingsState>()(
       secondaryPanelTab: 'files',
       secondaryPanelWidth: 300,
       settingsOpen: false,
+      activeSettingsTab: 'general',
       agentPanelOpen: false,
       workingDirectory: '',
       selectedModel: 'claude-sonnet-4-6',
@@ -293,6 +298,16 @@ export const useSettingsStore = create<SettingsState>()(
           // Clear update badge when opening settings
           ...(!state.settingsOpen && state.updateAvailable ? { updateAvailable: false } : {}),
         })),
+
+      openSettingsTab: (tab) =>
+        set(() => ({
+          settingsOpen: true,
+          activeSettingsTab: tab,
+          updateAvailable: false,
+        })),
+
+      setActiveSettingsTab: (activeSettingsTab) =>
+        set(() => ({ activeSettingsTab })),
 
       setWorkingDirectory: (dir) =>
         set(() => ({ workingDirectory: dir })),
