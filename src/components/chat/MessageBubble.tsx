@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, type ReactNode } from 'react';
+import React, { memo, useState, useCallback, type ReactNode } from 'react';
 import { useChatStore, type ChatMessage } from '../../stores/chatStore';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -28,7 +28,42 @@ function safeContent(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export const MessageBubble = memo(function MessageBubble({ message, isFirstInGroup = true }: Props) {
+class MessageErrorBoundary extends React.Component<
+  { children: React.ReactNode; message: ChatMessage },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; message: ChatMessage }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(`[MessageBubble] Error in message ${this.props.message.id}:`, error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="ml-11 my-1.5 p-3 rounded-xl border border-red-500/20 bg-red-500/5 text-xs text-text-secondary">
+          <div className="flex items-center gap-1.5 text-red-500 font-medium mb-1">
+            <span>⚠️</span>
+            <span>消息卡片渲染异常 ({this.props.message.type || this.props.message.role})</span>
+          </div>
+          <div className="text-[11px] text-text-tertiary font-mono">
+            {this.state.error?.message || '渲染错误'}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MessageContent({ message, isFirstInGroup = true }: Props) {
   if (message.role === 'user') return <UserMsg message={message} />;
   if (message.role === 'system' && message.commandType === 'processing') return <CommandProcessingCard message={message} />;
   if (message.role === 'system' && message.commandType) return <CommandFeedbackMsg message={message} />;
@@ -48,6 +83,14 @@ export const MessageBubble = memo(function MessageBubble({ message, isFirstInGro
   if (message.type === 'plan') return <PlanMsg message={message} />;
   if (message.type === 'image_generation') return <ChatImageCard message={message} />;
   return <AssistantMsg message={message} isFirstInGroup={isFirstInGroup} />;
+}
+
+export const MessageBubble = memo(function MessageBubble({ message, isFirstInGroup = true }: Props) {
+  return (
+    <MessageErrorBoundary message={message}>
+      <MessageContent message={message} isFirstInGroup={isFirstInGroup} />
+    </MessageErrorBoundary>
+  );
 });
 
 /* ================================================================
@@ -535,6 +578,34 @@ function shortPath(filePath: string): string {
 
 /** Tool icon mini SVG */
 function ToolIcon({ name }: { name: string }) {
+  const lower = name.toLowerCase();
+  if (lower.includes('computer-use') || lower.includes('screenshot') || lower.includes('zoom')) {
+    return (
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+        stroke="currentColor" strokeWidth="1.3" className="text-accent flex-shrink-0">
+        <rect x="2" y="2" width="12" height="9" rx="1.5" />
+        <path d="M5 14h6M8 11v3" />
+      </svg>
+    );
+  }
+  if (lower.includes('click') || lower.includes('mouse') || lower.includes('cursor')) {
+    return (
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+        stroke="currentColor" strokeWidth="1.3" className="text-amber-400 flex-shrink-0">
+        <path d="M3 3l4.5 10.5 2-4.5 4.5-2L3 3z" />
+      </svg>
+    );
+  }
+  if (lower.includes('type') || lower.includes('key')) {
+    return (
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+        stroke="currentColor" strokeWidth="1.3" className="text-emerald-400 flex-shrink-0">
+        <rect x="2" y="4" width="12" height="8" rx="1.5" />
+        <path d="M5 7h1M8 7h1M11 7h1M5 9h6" />
+      </svg>
+    );
+  }
+
   switch (name) {
     case 'Bash':
       return (
@@ -608,6 +679,19 @@ function ToolIcon({ name }: { name: string }) {
 }
 
 function getToolLabel(name: string, t: (key: string) => string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes('screenshot')) return '🖥️ 屏幕截屏';
+  if (lower.includes('zoom')) return '🔍 区域缩放';
+  if (lower.includes('left_click')) return '🖱️ 鼠标左击';
+  if (lower.includes('right_click')) return '🖱️ 鼠标右击';
+  if (lower.includes('double_click')) return '🖱️ 鼠标双击';
+  if (lower.includes('mouse_move')) return '🖱️ 移动光标';
+  if (lower.includes('scroll')) return '📜 滚轮滑动';
+  if (lower.includes('type')) return '⌨️ 键盘输入';
+  if (lower.includes('key')) return '🔤 发送按键';
+  if (lower.includes('open_application')) return '🚀 打开应用';
+  if (lower.includes('computer-use') || lower.includes('computer_batch')) return '🖥️ 计算机控制';
+
   switch (name) {
     case 'Bash': return t('msg.terminal');
     case 'Read': return t('msg.readFile');
@@ -718,6 +802,48 @@ export const ToolUseMsg = memo(function ToolUseMsg({ message }: Props) {
       return (
         <span className="text-[11px] text-text-tertiary truncate max-w-[300px] italic">
           {input.subject || input.description}
+        </span>
+      );
+    }
+
+    // Computer-Use Action parameter previews
+    if (input?.coordinate) {
+      return (
+        <span className="text-[11px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+          坐标 [{input.coordinate[0]}, {input.coordinate[1]}]
+          {input.text ? ` (${input.text})` : ''}
+        </span>
+      );
+    }
+
+    if (input?.region) {
+      return (
+        <span className="text-[11px] font-mono text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">
+          区域 [{input.region.join(', ')}]
+        </span>
+      );
+    }
+
+    if (toolName.toLowerCase().includes('type') && input?.text) {
+      return (
+        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded truncate max-w-[260px]">
+          输入 "{input.text.length > 30 ? input.text.slice(0, 30) + '…' : input.text}"
+        </span>
+      );
+    }
+
+    if (toolName.toLowerCase().includes('key') && input?.text) {
+      return (
+        <span className="text-[11px] font-mono text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">
+          按键 {input.text}
+        </span>
+      );
+    }
+
+    if (input?.app) {
+      return (
+        <span className="text-[11px] text-accent font-mono bg-accent/10 px-1.5 py-0.5 rounded">
+          应用: {input.app}
         </span>
       );
     }
@@ -942,6 +1068,25 @@ export const ToolUseMsg = memo(function ToolUseMsg({ message }: Props) {
   );
 });
 
+function extractScreenshotImage(content: string): string | null {
+  if (!content) return null;
+  if (content.startsWith('data:image/')) return content;
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed?.content)) {
+      const img = parsed.content.find((b: any) => b.type === 'image' && b.data);
+      if (img) return `data:${img.mimeType || 'image/jpeg'};base64,${img.data}`;
+    }
+    if (parsed?.base64) {
+      return `data:image/jpeg;base64,${parsed.base64}`;
+    }
+  } catch {}
+  if (content.startsWith('/9j/') && content.length > 500) {
+    return `data:image/jpeg;base64,${content}`;
+  }
+  return null;
+}
+
 /* ================================================================
    ToolResultMsg — inline result
    ================================================================ */
@@ -950,9 +1095,12 @@ function ToolResultMsg({ message }: Props) {
   const [expanded, setExpanded] = useState(false);
   const content = safeContent(message.content);
   const depth = message.subAgentDepth ?? 0;
+  const screenshotImage = extractScreenshotImage(content);
 
   // Show a short one-line preview on the same line as the "Result" label
-  const preview = content.length > 0
+  const preview = screenshotImage
+    ? '🖥️ 屏幕截图已捕获'
+    : content.length > 0
     ? content.split('\n')[0].slice(0, 60) + (content.length > 60 ? '…' : '')
     : '';
 
@@ -979,7 +1127,29 @@ function ToolResultMsg({ message }: Props) {
           </span>
         )}
       </button>
-      {expanded && content && (
+
+      {/* Render screenshot image card if present */}
+      {screenshotImage && (
+        <div className="ml-5 mt-1.5 max-w-sm">
+          <div
+            onClick={() => useLightboxStore.getState().open(screenshotImage)}
+            className="group relative cursor-zoom-in rounded-lg overflow-hidden border border-border-subtle bg-bg-secondary hover:border-accent transition-all duration-200 shadow-sm"
+          >
+            <img
+              src={screenshotImage}
+              alt="Screen capture"
+              className="w-full max-h-48 object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity px-2.5 py-1 rounded-md bg-black/70 text-white text-[11px] font-medium backdrop-blur-sm">
+                点击放大全屏查看
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expanded && content && !screenshotImage && (
         <pre className="ml-5 mt-0.5 text-[11px] text-text-tertiary
           overflow-x-auto font-mono leading-relaxed
           max-h-48 overflow-y-auto whitespace-pre-wrap">

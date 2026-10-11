@@ -1305,6 +1305,8 @@ export function InputBar() {
           context_window: liveContextWindow,
           max_output_tokens: useSettingsStore.getState().maxOutputTokens,
           permission_mode: mapSessionModeToPermissionMode(liveSessionMode),
+          enable_computer_use: useSettingsStore.getState().enableComputerUse,
+          computer_use_python: useSettingsStore.getState().computerUsePythonPath,
         });
         console.log('[TOKENICODE:session] started successfully', { sessionId: session.session_id, pid: session.pid, cli: session.cli_path });
 

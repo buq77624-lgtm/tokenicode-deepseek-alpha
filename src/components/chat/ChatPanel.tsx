@@ -1042,6 +1042,8 @@ async function startDraftSession(folderPath: string) {
       context_window: getContextWindowForModel(resolvedModel, contextWindowMode),
       max_output_tokens: useSettingsStore.getState().maxOutputTokens,
       permission_mode: mapSessionModeToPermissionMode(sessionMode),
+      enable_computer_use: useSettingsStore.getState().enableComputerUse,
+      computer_use_python: useSettingsStore.getState().computerUsePythonPath,
     });
 
     // Store stdinId so InputBar can send the first message via stdin

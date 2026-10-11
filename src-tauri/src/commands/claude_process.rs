@@ -106,11 +106,13 @@ impl ProcessManager {
 /// the `send_control_request` command. When the user switches permission mode
 /// at runtime (e.g. bypass → plan), `send_control_request` updates the flag
 /// so the stdout reader's control_request handler uses the current mode.
+#[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 pub struct BypassModeMap {
     flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
+#[allow(dead_code)]
 impl BypassModeMap {
     pub fn new() -> Self {
         Self {
@@ -169,4 +171,8 @@ pub struct StartSessionParams {
     /// When not "bypassPermissions", enables --permission-prompt-tool stdio for structured
     /// permission requests via the SDK control protocol.
     pub permission_mode: Option<String>,
+    /// Whether to enable Computer-Use Agent (CUA) tools
+    pub enable_computer_use: Option<bool>,
+    /// Optional custom Python executable path for CUA
+    pub computer_use_python: Option<String>,
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useMcpStore } from '../../stores/mcpStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import type { DiscoveredMcpServer, McpServer, McpServerConfig } from '../../stores/mcpStore';
 import { useT } from '../../lib/i18n';
 
@@ -34,8 +35,70 @@ export function McpTab() {
 
   const missingDiscovered = discoveredServers.filter((server) => !server.imported);
 
+  const enableComputerUse = useSettingsStore((s) => s.enableComputerUse);
+  const setEnableComputerUse = useSettingsStore((s) => s.setEnableComputerUse);
+  const computerUsePythonPath = useSettingsStore((s) => s.computerUsePythonPath);
+  const setComputerUsePythonPath = useSettingsStore((s) => s.setComputerUsePythonPath);
+
   return (
     <div className="space-y-4">
+      {/* Computer-Use Agent (CUA) Dedicated Control Banner */}
+      <div className="p-3.5 rounded-xl border border-border-subtle bg-bg-secondary/40 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">🖥️</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-medium text-text-primary">计算机控制 (Computer-Use Agent)</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-400 font-mono">
+                  Windows CUA 运行中
+                </span>
+              </div>
+              <p className="text-[11px] text-text-tertiary mt-0.5">
+                直接复用 cc-haha Windows 原生屏幕截取、物理像素定位与防误触拦截引擎 (win_helper.py)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setEnableComputerUse(!enableComputerUse)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              enableComputerUse ? 'bg-accent' : 'bg-bg-tertiary'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                enableComputerUse ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {enableComputerUse && (
+          <div className="pt-2 border-t border-border-subtle/40 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-text-muted shrink-0">Python 解释器路径:</span>
+              <input
+                type="text"
+                value={computerUsePythonPath}
+                onChange={(e) => setComputerUsePythonPath(e.target.value)}
+                placeholder="C:\Users\...\.claude\.runtime\venv\Scripts\python.exe"
+                className="flex-1 px-2 py-1 text-xs font-mono bg-bg-tertiary border border-border-subtle rounded text-text-primary focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-text-tertiary">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                虚拟光标置顶层就绪 (win_cursor_badge)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                低级按键防抢占保护 (ForegroundLease)
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

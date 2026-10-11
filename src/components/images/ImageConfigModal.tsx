@@ -201,7 +201,13 @@ export function ImageConfigModal() {
             <input
               type="text"
               value={currentConfig.baseUrl}
-              onChange={(e) => updateConfig(currentConfig.id, { baseUrl: e.target.value.trim() })}
+              onChange={(e) => updateConfig(currentConfig.id, { baseUrl: e.target.value })}
+              onBlur={() => {
+                const cleaned = currentConfig.baseUrl.trim().replace(/\/+$/, '');
+                if (cleaned !== currentConfig.baseUrl) {
+                  updateConfig(currentConfig.id, { baseUrl: cleaned });
+                }
+              }}
               placeholder="https://api.openai.com/v1"
               className="w-full px-3 py-1.5 rounded-lg bg-bg-secondary/70 border border-border-subtle text-xs text-text-primary font-mono focus:outline-none focus:border-accent"
             />
@@ -289,26 +295,65 @@ export function ImageConfigModal() {
               <button
                 type="submit"
                 disabled={!customModelInput.trim()}
-                className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover text-xs font-medium transition-smooth disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover text-xs font-medium transition-smooth disabled:opacity-40 cursor-pointer"
               >
                 添加
               </button>
             </form>
+
+            {/* 常用模型快捷点选 */}
+            <div className="flex items-center gap-1 flex-wrap pt-0.5">
+              <span className="text-[10px] text-text-tertiary select-none">推荐模型:</span>
+              {[
+                'dall-e-3',
+                'black-forest-labs/FLUX.1-schnell',
+                'black-forest-labs/FLUX.1-dev',
+                'stabilityai/stable-diffusion-3.5-large',
+                'cogview-3-plus',
+              ].map((rec) => (
+                <button
+                  key={rec}
+                  type="button"
+                  onClick={() => {
+                    addModelToConfig(currentConfig.id, rec);
+                  }}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-bg-secondary/60 hover:bg-bg-tertiary border border-border-subtle/70 text-text-secondary hover:text-accent transition-colors cursor-pointer"
+                  title={`点击添加模型 ${rec}`}
+                >
+                  + {rec.split('/').pop()}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 连通性测试报告 */}
           {testResult && (
-            <div className="p-3 rounded-lg bg-bg-secondary/50 border border-border-subtle space-y-1.5 text-xs animate-in fade-in">
+            <div className="p-3 rounded-lg bg-bg-secondary/50 border border-border-subtle space-y-2 text-xs animate-in fade-in">
               <div className="flex items-center justify-between">
-                <span className="text-text-secondary">网络连通性:</span>
+                <span className="text-text-secondary flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${testResult.connectivity.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  网络连通性
+                </span>
                 <span className={testResult.connectivity.ok ? 'text-emerald-500 font-medium' : 'text-red-500'}>
                   {testResult.connectivity.message}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-text-secondary">接口鉴权:</span>
+                <span className="text-text-secondary flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${testResult.auth.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  接口鉴权
+                </span>
                 <span className={testResult.auth.ok ? 'text-emerald-500 font-medium' : 'text-red-500'}>
                   {testResult.auth.message}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-text-secondary flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${testResult.model.ok ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  模型状态
+                </span>
+                <span className={testResult.model.ok ? 'text-emerald-500 font-medium' : 'text-amber-500'}>
+                  {testResult.model.message}
                 </span>
               </div>
             </div>

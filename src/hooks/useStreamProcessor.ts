@@ -1775,6 +1775,8 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
                   context_window: getContextWindowForModel(retryResolvedModel, retryContextWindowMode),
                   max_output_tokens: useSettingsStore.getState().maxOutputTokens,
                   permission_mode: mapSessionModeToPermissionMode(sessionMode),
+                  enable_computer_use: useSettingsStore.getState().enableComputerUse,
+                  computer_use_python: useSettingsStore.getState().computerUsePythonPath,
                 });
 
                 setSessionMeta({

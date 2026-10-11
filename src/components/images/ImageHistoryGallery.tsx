@@ -74,6 +74,14 @@ export function ImageHistoryGallery() {
 
   const [onlyFavorites, setOnlyFavorites] = useState(false);
 
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (scrollRef.current && e.deltaY !== 0) {
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
   if (history.length === 0) {
     return null;
   }
@@ -88,7 +96,7 @@ export function ImageHistoryGallery() {
           <button
             type="button"
             onClick={() => setOnlyFavorites(!onlyFavorites)}
-            className={`px-1.5 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 ${
+            className={`px-1.5 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 cursor-pointer ${
               onlyFavorites
                 ? 'bg-red-500/15 text-red-400 font-medium'
                 : 'bg-bg-tertiary hover:bg-bg-tertiary/80 text-text-muted hover:text-text-secondary'
@@ -106,26 +114,36 @@ export function ImageHistoryGallery() {
               clearHistory();
             }
           }}
-          className="text-[10px] text-text-muted hover:text-red-400 transition-colors"
+          className="text-[10px] text-text-muted hover:text-red-400 transition-colors cursor-pointer"
         >
           清空列表
         </button>
       </div>
 
-      {/* 横向滚动列表 */}
-      <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar">
-        {filteredHistory.map((item) => (
-          <ThumbnailItem
-            key={item.id}
-            image={item}
-            isSelected={currentImage?.id === item.id}
-            onClick={() => setCurrentImage(item)}
-            onDelete={(e) => {
-              e.stopPropagation();
-              deleteHistoryItem(item.id);
-            }}
-          />
-        ))}
+      {/* 横向滚动列表（支持滚轮左右滑动） */}
+      <div
+        ref={scrollRef}
+        onWheel={handleWheel}
+        className="flex items-center gap-2 overflow-x-auto py-1.5 no-scrollbar scroll-smooth"
+      >
+        {filteredHistory.length === 0 && onlyFavorites ? (
+          <div className="w-full py-3 text-center text-[11px] text-text-muted">
+            暂无收藏画作，点击右上角爱心即可收藏
+          </div>
+        ) : (
+          filteredHistory.map((item) => (
+            <ThumbnailItem
+              key={item.id}
+              image={item}
+              isSelected={currentImage?.id === item.id}
+              onClick={() => setCurrentImage(item)}
+              onDelete={(e) => {
+                e.stopPropagation();
+                deleteHistoryItem(item.id);
+              }}
+            />
+          ))
+        )}
       </div>
     </div>
   );

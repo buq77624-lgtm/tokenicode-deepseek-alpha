@@ -1672,6 +1672,57 @@ fn resolve_provider_env(
     Ok((env, keys_to_remove, extra_args))
 }
 
+fn get_cua_mcp_script_path() -> Option<std::path::PathBuf> {
+    // 1. Check current executable relative directory (release bundle)
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let p = parent.join("resources").join("cua-mcp").join("index.cjs");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    // 2. Check workspace relative paths (dev mode)
+    let cwd_res = std::path::PathBuf::from("resources").join("cua-mcp").join("index.cjs");
+    if cwd_res.exists() {
+        return Some(cwd_res);
+    }
+    let src_tauri_res = std::path::PathBuf::from("src-tauri").join("resources").join("cua-mcp").join("index.cjs");
+    if src_tauri_res.exists() {
+        return Some(src_tauri_res);
+    }
+    // 3. Check user profile directory ~/.tokenicode/cua-mcp/index.cjs
+    if let Some(home) = dirs::home_dir() {
+        let p = home.join(".tokenicode").join("cua-mcp").join("index.cjs");
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn create_cua_mcp_config_file(session_id: &str) -> Result<std::path::PathBuf, String> {
+    let script_path = get_cua_mcp_script_path()
+        .ok_or_else(|| "CUA MCP script (index.cjs) not found".to_string())?;
+
+    let script_str = script_path.to_string_lossy().replace('\\', "/");
+    let config_content = serde_json::json!({
+        "mcpServers": {
+            "computer-use": {
+                "command": "node",
+                "args": [script_str],
+                "type": "stdio"
+            }
+        }
+    });
+
+    let temp_file = std::env::temp_dir().join(format!("tokenicode-cua-mcp-{}.json", session_id));
+    std::fs::write(&temp_file, serde_json::to_string_pretty(&config_content).unwrap())
+        .map_err(|e| format!("Failed to write CUA MCP config: {}", e))?;
+
+    Ok(temp_file)
+}
+
 #[tauri::command]
 async fn start_claude_session(
     app: AppHandle,
@@ -1767,6 +1818,32 @@ async fn start_claude_session(
 
     // Append provider-specific CLI args (e.g. --setting-sources project,local)
     args.extend(provider_extra_args);
+
+    // Computer-Use Agent (CUA) integration
+    if params.enable_computer_use == Some(true) {
+        match create_cua_mcp_config_file(&session_id) {
+            Ok(config_path) => {
+                args.push("--mcp-config".to_string());
+                args.push(config_path.to_string_lossy().to_string());
+                args.push("--allowedTools".to_string());
+                args.push("mcp__computer-use__*".to_string());
+                eprintln!("[TOKENICODE] CUA enabled for session {}, config: {:?}", session_id, config_path);
+            }
+            Err(e) => {
+                eprintln!("[TOKENICODE] Failed to configure CUA MCP: {}", e);
+            }
+        }
+        // Inject input tag for Windows SendInput / cursor badge synchronization (0x43434841)
+        resolved_env.insert(
+            "CC_HAHA_COMPUTER_USE_INPUT_TAG".to_string(),
+            "1128483137".to_string(),
+        );
+        if let Some(ref py) = params.computer_use_python {
+            if !py.trim().is_empty() {
+                resolved_env.insert("TOKENICODE_CUA_PYTHON".to_string(), py.clone());
+            }
+        }
+    }
 
     // Inject effort level env var for non-off thinking levels
     if thinking_level != "off" {

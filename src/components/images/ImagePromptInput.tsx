@@ -1,5 +1,15 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useImageStore } from '../../stores/imageStore';
+
+const INSPIRATION_TAGS = [
+  '8k超清壁纸',
+  '二次元唯美',
+  '赛博朋克雨夜',
+  '日系清新治愈',
+  '概念艺术插画',
+  '电影级光影',
+  '微距景深摄影',
+];
 
 export function ImagePromptInput() {
   const prompt = useImageStore((s) => s.prompt);
@@ -12,6 +22,11 @@ export function ImagePromptInput() {
   const setConfigModalOpen = useImageStore((s) => s.setConfigModalOpen);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(/macintosh|mac os x/i.test(navigator.userAgent));
+  }, []);
 
   // 自动调整高度
   useEffect(() => {
@@ -28,6 +43,20 @@ export function ImagePromptInput() {
         generate();
       }
     }
+  };
+
+  const handleAppendTag = (tag: string) => {
+    if (isGenerating) return;
+    const current = prompt.trim();
+    if (!current) {
+      setPrompt(tag);
+    } else if (current.includes(tag)) {
+      // 已经包含则不重复添加
+      return;
+    } else {
+      setPrompt(`${current}, ${tag}`);
+    }
+    textareaRef.current?.focus();
   };
 
   return (
@@ -54,7 +83,7 @@ export function ImagePromptInput() {
             <button
               type="button"
               onClick={() => setConfigModalOpen(true)}
-              className="px-2 py-0.5 text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors whitespace-nowrap"
+              className="px-2 py-0.5 text-[11px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors whitespace-nowrap cursor-pointer"
             >
               前往配置
             </button>
@@ -81,7 +110,7 @@ export function ImagePromptInput() {
             <button
               type="button"
               onClick={() => setPrompt('')}
-              className="p-1 rounded hover:bg-bg-tertiary text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-1 rounded hover:bg-bg-tertiary text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
               title="清空提示词"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -90,9 +119,24 @@ export function ImagePromptInput() {
             </button>
           )}
           <span className="text-[10px] text-text-muted select-none">
-            {prompt.length > 0 ? `${prompt.length} 字` : 'Ctrl + ↵ 生成'}
+            {prompt.length > 0 ? `${prompt.length} 字` : `${isMac ? '⌘' : 'Ctrl'} + ↵ 生成`}
           </span>
         </div>
+      </div>
+
+      {/* 灵感快捷标签 */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+        <span className="text-[10px] text-text-tertiary flex-shrink-0 select-none mr-0.5">灵感:</span>
+        {INSPIRATION_TAGS.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => handleAppendTag(tag)}
+            className="px-2 py-0.5 rounded-full text-[10px] bg-bg-card hover:bg-bg-tertiary border border-border-subtle hover:border-accent/40 text-text-secondary hover:text-text-primary transition-colors flex-shrink-0 cursor-pointer"
+          >
+            + {tag}
+          </button>
+        ))}
       </div>
 
       {/* 生成大按钮 */}
@@ -105,7 +149,7 @@ export function ImagePromptInput() {
             ? 'bg-accent/70 text-white cursor-wait animate-pulse'
             : !prompt.trim()
             ? 'bg-bg-tertiary text-text-muted border border-border-subtle cursor-not-allowed'
-            : 'bg-accent hover:opacity-90 active:scale-[0.99] text-white'
+            : 'bg-accent hover:opacity-90 active:scale-[0.99] text-white cursor-pointer'
         }`}
       >
         {isGenerating ? (

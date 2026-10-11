@@ -148,6 +148,11 @@ interface SettingsState {
   /** Mirror the active provider into ~/.claude/settings.json so the `claude` CLI matches. */
   syncClaudeSettings: boolean;
 
+  /** Whether Computer-Use Agent (CUA) desktop automation tools are enabled */
+  enableComputerUse: boolean;
+  /** Custom Python interpreter path for Computer-Use automation engine */
+  computerUsePythonPath: string;
+
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   setColorTheme: (colorTheme: ColorTheme) => void;
@@ -200,6 +205,8 @@ interface SettingsState {
   setCustomBgBlur: (blur: number) => void;
   setChatBubbleGlass: (enabled: boolean) => void;
   setSyncClaudeSettings: (enabled: boolean) => void;
+  setEnableComputerUse: (enabled: boolean) => void;
+  setComputerUsePythonPath: (path: string) => void;
   clearCustomBg: () => void;
 }
 
@@ -262,6 +269,8 @@ export const useSettingsStore = create<SettingsState>()(
       customBgBlur: 0,
       chatBubbleGlass: true,
       syncClaudeSettings: false,
+      enableComputerUse: true,
+      computerUsePythonPath: '',
 
       toggleTheme: () =>
         set((state) => ({ theme: nextTheme(state.theme) })),
@@ -444,6 +453,10 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       removeSkillDirectory: (path) =>
         set((state) => ({ skillDirectories: state.skillDirectories.filter((item) => item !== path) })),
+      setEnableComputerUse: (enableComputerUse) =>
+        set(() => ({ enableComputerUse })),
+      setComputerUsePythonPath: (computerUsePythonPath) =>
+        set(() => ({ computerUsePythonPath })),
     }),
     {
       name: 'tokenicode-settings',

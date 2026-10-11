@@ -27,6 +27,10 @@ export interface StartSessionParams {
    *  "acceptEdits" | "default" | "plan" | "bypassPermissions"
    *  When not "bypassPermissions", enables structured permission requests via SDK protocol. */
   permission_mode?: string;
+  /** Whether to enable Computer-Use Agent (CUA) desktop automation tools */
+  enable_computer_use?: boolean;
+  /** Custom Python interpreter path for Computer-Use automation engine */
+  computer_use_python?: string;
 }
 
 export interface SessionInfo {
